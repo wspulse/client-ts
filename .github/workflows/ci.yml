@@ -15,16 +15,44 @@ on:
       - '.github/instructions/**'
 
 jobs:
-  checks:
-    uses: ./.github/workflows/checks.yml
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+
+      - name: Lint
+        run: npx eslint src/ test/
+
+      - name: Type check
+        run: npx tsc --noEmit
+      
+      - name: Run unit tests
+        run: npx vitest run
 
   # Integration tests require Go and the wspulse/core + wspulse/server repos
   # as siblings. Only runs on pushes to main — this is the gate before tagging.
   test-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.ref == 'refs/heads/main'
-    needs: [checks]
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    needs: [check]
     strategy:
       matrix:
         node-version: [20, 22]
