@@ -3,7 +3,7 @@ module github.com/wspulse/client-ts/testserver
 go 1.26.0
 
 require (
-	github.com/wspulse/server v0.2.0
+	github.com/wspulse/server v0.3.0
 	go.uber.org/zap v1.27.1
 )
 
@@ -16,5 +16,5 @@ require (
 
 replace (
 	github.com/wspulse/core v0.2.0 => ../../core
-	github.com/wspulse/server v0.2.0 => ../../server
+	github.com/wspulse/server v0.3.0 => ../../server
 )
