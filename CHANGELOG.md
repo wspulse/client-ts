@@ -13,6 +13,14 @@
 - `ClientOptions` interface with `resolveOptions()` defaults
 - `backoff()` function with equal jitter (matches `client-go` formula)
 - Error classes: `ConnectionClosedError`, `RetriesExhaustedError`, `ConnectionLostError`
-- `connect()` entry point stub (implementation in progress)
+- `connect()` entry point returning a `Client`
 - `Client` interface: `send()`, `close()`, `done`
-- Unit tests for backoff, errors, and options
+- Auto-reconnect with exponential backoff, configurable `maxRetries`, `baseDelay`, `maxDelay`
+- Heartbeat: client-side Ping/Pong with `pingPeriod` and `pongWait` (Node.js `ws` only)
+- `writeWait`: send timeout for control frames
+- `maxMessageSize`: inbound message size enforcement (close code 1009)
+- `dialHeaders`: custom HTTP headers for WebSocket upgrade (Node.js only)
+- Bounded 256-frame send buffer with head-drop on overflow
+- 34 unit/integration tests across 5 test files
+- CI workflow: lint → type-check → test on Node 20 and 22 (3-job matrix)
+- README with quick-start, API reference, and platform notes
