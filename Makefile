@@ -24,13 +24,15 @@ lint: ## Run ESLint and type-check
 fmt: ## Format source files with Prettier
 	@npx prettier --write "src/**/*.ts" "test/**/*.ts"
 
-check: ## Run fmt, lint, and test (pre-commit gate)
+check: ## Run fmt, lint, unit tests, and integration tests (pre-commit gate)
 	@echo "── fmt ──"
 	@$(MAKE) --no-print-directory fmt
 	@echo "── lint ──"
 	@$(MAKE) --no-print-directory lint
 	@echo "── test ──"
 	@$(MAKE) --no-print-directory test
+	@echo "── test-integration ──"
+	@$(MAKE) --no-print-directory test-integration
 	@echo "── all passed ──"
 
 clean: ## Remove build artifacts and test cache
