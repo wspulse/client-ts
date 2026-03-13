@@ -1,15 +1,18 @@
-.PHONY: help build test test-cover lint fmt check clean
+.PHONY: help build test test-integration test-cover lint fmt check clean
 
 # Default target
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-build: ## Compile TypeScript to dist/
-	@npx tsc -p tsconfig.build.json
+build: ## Compile TypeScript to dist/ (ESM + CJS)
+	@npx tsup
 
-test: ## Run all tests
+test: ## Run unit tests
 	@npx vitest run
+
+test-integration: ## Run integration tests (requires Go)
+	@npx vitest run -c vitest.integration.config.ts
 
 test-cover: ## Run tests with coverage report
 	@npx vitest run --coverage
