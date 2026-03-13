@@ -332,3 +332,101 @@ describe("multiple messages", () => {
     await testClient.done;
   });
 });
+
+describe("maxMessageSize", () => {
+  it("closes connection when inbound message exceeds limit", async () => {
+    // Server that sends an oversized message shortly after connect.
+    const bigServer = new WebSocketServer({ port: 0 });
+    bigServer.on("connection", (ws) => {
+      // Small delay ensures client has attached onmessage handler.
+      setTimeout(() => {
+        const oversized = JSON.stringify({
+          event: "big",
+          payload: "x".repeat(200),
+        });
+        ws.send(oversized, { binary: false });
+      }, 20);
+    });
+    const addr = bigServer.address();
+    if (typeof addr === "string" || addr === null) throw new Error("bad addr");
+    testServer = bigServer;
+
+    const received: Frame[] = [];
+    let disconnectErr: Error | null | undefined;
+
+    testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
+      maxMessageSize: 100,
+      onMessage: (frame) => received.push(frame),
+      onDisconnect: (err) => {
+        disconnectErr = err;
+      },
+    });
+
+    await testClient.done;
+
+    // Oversized message should not be delivered.
+    expect(received.length).toBe(0);
+    // Connection should be closed (ConnectionLostError since no auto-reconnect).
+    expect(disconnectErr).toBeDefined();
+  });
+});
+
+describe("heartbeat (pong timeout)", () => {
+  it("closes connection when server stops responding to pings", async () => {
+    // Create a server that swallows pong responses.
+    const server = new WebSocketServer({ port: 0 });
+    server.on("connection", (ws) => {
+      // Prevent server from auto-replying to client pings by overriding pong.
+      ws.pong = () => {};
+    });
+    const addr = server.address();
+    if (typeof addr === "string" || addr === null) throw new Error("bad addr");
+    testServer = server;
+
+    let transportDropped = false;
+    let disconnectErr: Error | null | undefined;
+
+    testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
+      heartbeat: { pingPeriod: 30, pongWait: 80 },
+      onTransportDrop: () => {
+        transportDropped = true;
+      },
+      onDisconnect: (err) => {
+        disconnectErr = err;
+      },
+    });
+
+    // Wait for pong timeout to fire (pongWait = 80ms).
+    await testClient.done;
+
+    expect(transportDropped).toBe(true);
+    expect(disconnectErr).toBeDefined();
+  });
+});
+
+describe("concurrent close and transport drop", () => {
+  it("fires onDisconnect exactly once", async () => {
+    const { server, url } = createEchoServer();
+    testServer = server;
+
+    let disconnectCount = 0;
+
+    testClient = await connect(url, {
+      onDisconnect: () => {
+        disconnectCount++;
+      },
+      onTransportDrop: () => {
+        // Call close() simultaneously with transport drop.
+        testClient?.close();
+      },
+    });
+
+    // Kill all connections from server side.
+    for (const ws of server.clients) ws.terminate();
+
+    await testClient.done;
+
+    // Regardless of the race, onDisconnect must fire exactly once.
+    expect(disconnectCount).toBe(1);
+  });
+});
