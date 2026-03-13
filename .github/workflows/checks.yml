@@ -4,8 +4,9 @@ on:
   workflow_call:
 
 jobs:
-  lint:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         node-version: [20, 22]
@@ -31,24 +32,5 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      matrix:
-        node-version: [20, 22]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
+      - name: Unit tests
         run: npx vitest run
