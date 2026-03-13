@@ -33,15 +33,15 @@ describe("index re-exports", () => {
 });
 
 describe("connect", () => {
-  it("throws not-yet-implemented error", async () => {
-    await expect(connect("ws://localhost:8080")).rejects.toThrow(
-      "not yet implemented",
+  it("rejects when server is unreachable", async () => {
+    await expect(connect("ws://127.0.0.1:19999")).rejects.toThrow(
+      "wspulse: dial failed",
     );
   });
 
-  it("throws not-yet-implemented with options", async () => {
+  it("rejects with options when server is unreachable", async () => {
     await expect(
-      connect("ws://localhost:8080", { writeWait: 5000 }),
-    ).rejects.toThrow("not yet implemented");
+      connect("ws://127.0.0.1:19999", { writeWait: 5000 }),
+    ).rejects.toThrow("wspulse: dial failed");
   });
 });
