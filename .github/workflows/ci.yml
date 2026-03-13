@@ -81,9 +81,7 @@ jobs:
           cache-dependency-path: client-ts/testserver/go.sum
 
       - name: Set up Go workspace
-        run: |
-          go work init
-          go work use ./client-ts/testserver ./core ./server
+        run: go work init ./client-ts/testserver ./core ./server
 
       - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4

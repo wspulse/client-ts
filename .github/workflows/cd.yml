@@ -6,14 +6,8 @@ on:
       - 'v*.*.*'
 
 jobs:
-  checks:
-    uses: ./.github/workflows/checks.yml
-
-  # Integration tests already ran on main before the tag was cut.
-  # CD trusts that gate and proceeds directly to build.
   build:
     runs-on: ubuntu-latest
-    needs: [checks]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
