@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Coverage
+coverage/
+
+# IDE
+.idea/*
+!.idea/codeStyles
+!.idea/runConfigurations
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Local docs (never commit)
+doc/local/
