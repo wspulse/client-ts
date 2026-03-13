@@ -18,6 +18,9 @@ coverage/
 
 # Environment
 .env
+
+# Integration test temp files
+test/.server-url
 .env.*
 !.env.example
 

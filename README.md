@@ -118,30 +118,30 @@ const client = await connect(url, {
 
 ## Public API Surface
 
-| Symbol                  | Description                                    |
-| ----------------------- | ---------------------------------------------- |
-| `Client`                | Interface: `send()`, `close()`, `done`         |
-| `connect(url, opts?)`   | Connect and return a `Client`                  |
-| `Frame`                 | Interface: `{ id?, event?, payload? }`         |
-| `ClientOptions`         | Options object type                            |
+| Symbol                  | Description                                     |
+| ----------------------- | ----------------------------------------------- |
+| `Client`                | Interface: `send()`, `close()`, `done`          |
+| `connect(url, opts?)`   | Connect and return a `Client`                   |
+| `Frame`                 | Interface: `{ id?, event?, payload? }`          |
+| `ClientOptions`         | Options object type                             |
 | `ConnectionClosedError` | Thrown by `send()` after `close()`              |
-| `RetriesExhaustedError` | Passed to `onDisconnect` when retries exceeded |
-| `ConnectionLostError`   | Passed to `onDisconnect` when no auto-reconnect|
-| `backoff()`             | Backoff formula (exported for testing/reuse)   |
+| `RetriesExhaustedError` | Passed to `onDisconnect` when retries exceeded  |
+| `ConnectionLostError`   | Passed to `onDisconnect` when no auto-reconnect |
+| `backoff()`             | Backoff formula (exported for testing/reuse)    |
 
 ### Client Options
 
-| Option           | Type                                    | Default             |
-| ---------------- | --------------------------------------- | ------------------- |
-| `onMessage`      | `(frame: Frame) => void`               | no-op               |
-| `onDisconnect`   | `(err: Error \| null) => void`          | no-op               |
-| `onReconnect`    | `(attempt: number) => void`            | no-op               |
-| `onTransportDrop`| `(err: Error) => void`                 | no-op               |
-| `autoReconnect`  | `{ maxRetries, baseDelay, maxDelay }`  | disabled             |
-| `heartbeat`      | `{ pingPeriod, pongWait }` (ms)        | 20 000 / 60 000     |
-| `writeWait`      | `number` (ms)                          | 10 000               |
-| `maxMessageSize` | `number` (bytes)                       | 1 MiB (1 048 576)   |
-| `dialHeaders`    | `Record<string, string>`               | `{}`                 |
+| Option            | Type                                  | Default           |
+| ----------------- | ------------------------------------- | ----------------- |
+| `onMessage`       | `(frame: Frame) => void`              | no-op             |
+| `onDisconnect`    | `(err: Error \| null) => void`        | no-op             |
+| `onReconnect`     | `(attempt: number) => void`           | no-op             |
+| `onTransportDrop` | `(err: Error) => void`                | no-op             |
+| `autoReconnect`   | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
+| `heartbeat`       | `{ pingPeriod, pongWait }` (ms)       | 20 000 / 60 000   |
+| `writeWait`       | `number` (ms)                         | 10 000            |
+| `maxMessageSize`  | `number` (bytes)                      | 1 MiB (1 048 576) |
+| `dialHeaders`     | `Record<string, string>`              | `{}`              |
 
 ---
 
@@ -159,13 +159,13 @@ const client = await connect(url, {
 
 ## Platform Notes
 
-| Feature | Node.js 20+ | Browser |
-| ------- | ----------- | ------- |
-| WebSocket transport | `ws` package (peer dep) | Native `WebSocket` API |
-| `dialHeaders` | ✅ Passed as HTTP headers | ⚠️ Silently ignored (browser API limitation) |
-| Heartbeat (Ping/Pong) | ✅ Client sends Ping, monitors Pong | ⚠️ No-op (browser handles automatically) |
-| `maxMessageSize` | ✅ | ✅ |
-| Auto-reconnect | ✅ | ✅ |
+| Feature               | Node.js 20+                         | Browser                                      |
+| --------------------- | ----------------------------------- | -------------------------------------------- |
+| WebSocket transport   | `ws` package (peer dep)             | Native `WebSocket` API                       |
+| `dialHeaders`         | ✅ Passed as HTTP headers           | ⚠️ Silently ignored (browser API limitation) |
+| Heartbeat (Ping/Pong) | ✅ Client sends Ping, monitors Pong | ⚠️ No-op (browser handles automatically)     |
+| `maxMessageSize`      | ✅                                  | ✅                                           |
+| Auto-reconnect        | ✅                                  | ✅                                           |
 
 ---
 
@@ -182,8 +182,8 @@ make build     # tsc → dist/
 
 ## Related Modules
 
-| Module                                                  | Description                              |
-| ------------------------------------------------------- | ---------------------------------------- |
-| [wspulse/core](https://github.com/wspulse/core)         | Shared types, codecs, and event router   |
-| [wspulse/server](https://github.com/wspulse/server)     | WebSocket server                         |
-| [wspulse/client-go](https://github.com/wspulse/client-go) | Go client (reference implementation)  |
+| Module                                                    | Description                            |
+| --------------------------------------------------------- | -------------------------------------- |
+| [wspulse/core](https://github.com/wspulse/core)           | Shared types, codecs, and event router |
+| [wspulse/server](https://github.com/wspulse/server)       | WebSocket server                       |
+| [wspulse/client-go](https://github.com/wspulse/client-go) | Go client (reference implementation)   |
