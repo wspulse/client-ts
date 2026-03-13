@@ -57,6 +57,10 @@ interface WS {
   onopen: ((ev: unknown) => void) | null;
   send(data: string | ArrayBuffer | Uint8Array): void;
   close(code?: number, reason?: string): void;
+  /** Node.js `ws` library: register event listener (ping, pong, etc.). */
+  on?(event: string, listener: (...args: unknown[]) => void): void;
+  /** Node.js `ws` library: send a WebSocket Ping frame. */
+  ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
 }
 
 /** WebSocket readyState constants. */
@@ -76,6 +80,8 @@ function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
     // headers and has consistent binary/text handling across Node versions.
     // Fall back to the native browser WebSocket API.
     const hasHeaders = Object.keys(opts.dialHeaders).length > 0;
+    const wsOpts: Record<string, unknown> = {};
+    if (hasHeaders) wsOpts.headers = opts.dialHeaders;
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const WebSocketImpl = require("ws") as {
@@ -83,7 +89,7 @@ function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
       };
       ws = new WebSocketImpl(
         url,
-        hasHeaders ? { headers: opts.dialHeaders } : undefined,
+        Object.keys(wsOpts).length > 0 ? wsOpts : undefined,
       );
     } catch {
       // 'ws' not available — use native WebSocket (browser environment).
@@ -169,6 +175,12 @@ class WspulseClient implements Client {
   /** Whether onDisconnect has been called (exactly-once guard). */
   private disconnectFired = false;
 
+  /** Pong deadline timer — fires when server stops responding. */
+  private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Ping interval timer — sends WebSocket Ping frames (Node.js only). */
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(url: string, opts: ResolvedOptions, ws: WS) {
     this.url = url;
     this.opts = opts;
@@ -183,6 +195,7 @@ class WspulseClient implements Client {
 
     this.attachListeners(ws);
     this.startDrain();
+    this.startHeartbeat(ws);
   }
 
   /**
@@ -220,8 +233,22 @@ class WspulseClient implements Client {
   private attachListeners(ws: WS): void {
     ws.onmessage = (ev) => {
       if (this.closed || this.disconnectFired) return;
+
+      // maxMessageSize enforcement: close connection if exceeded.
+      const raw = String(ev.data);
+      if (
+        this.opts.maxMessageSize > 0 &&
+        raw.length > this.opts.maxMessageSize
+      ) {
+        // Detach onclose to avoid double-firing handleTransportDrop.
+        ws.onclose = null;
+        ws.close(1009, "message too large");
+        this.handleTransportDrop();
+        return;
+      }
+
       try {
-        const frame = JSON.parse(String(ev.data)) as Frame;
+        const frame = JSON.parse(raw) as Frame;
         this.opts.onMessage(frame);
       } catch {
         // Decode error — drop frame silently (matches Go behaviour).
@@ -248,6 +275,7 @@ class WspulseClient implements Client {
     if (this.closed) return;
 
     this.stopDrain();
+    this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
     this.opts.onTransportDrop(dropErr);
 
@@ -300,10 +328,11 @@ class WspulseClient implements Client {
           return;
         }
 
-        // Swap connection and restart listeners + drain.
+        // Swap connection and restart listeners + drain + heartbeat.
         this.ws = newWs;
         this.attachListeners(newWs);
         this.startDrain();
+        this.startHeartbeat(newWs);
         return; // Successfully reconnected.
       } catch {
         // Dial failed — increment attempt and retry.
@@ -352,6 +381,67 @@ class WspulseClient implements Client {
     }
   }
 
+  // ── heartbeat ───────────────────────────────────────────────────────────
+
+  /**
+   * Start the heartbeat mechanism on a WebSocket.
+   *
+   * Node.js (`ws` library): sends Ping frames every `pingPeriod` ms, and
+   * sets a pong deadline timer of `pongWait` ms that is reset on each Pong.
+   * If the deadline fires, the WebSocket is closed (triggering transport drop).
+   *
+   * Browser: Ping/Pong is handled automatically by the browser engine.
+   * There is no programmatic access to ping/pong frames, so heartbeat
+   * monitoring is a no-op in browser environments.
+   */
+  private startHeartbeat(ws: WS): void {
+    // Only meaningful when ws supports .on() and .ping() (Node.js ws lib).
+    if (typeof ws.on !== "function" || typeof ws.ping !== "function") return;
+
+    const { pingPeriod, pongWait } = this.opts.heartbeat;
+
+    // Reset (or start) the pong deadline timer.
+    const resetPongDeadline = () => {
+      this.clearPongDeadline();
+      this.pongDeadlineTimer = setTimeout(() => {
+        // Server failed to respond — close WS to trigger transport drop.
+        ws.close(1001, "pong timeout");
+      }, pongWait);
+    };
+
+    // Listen for Pong frames to reset the deadline.
+    ws.on("pong", () => {
+      resetPongDeadline();
+    });
+
+    // Start the initial deadline.
+    resetPongDeadline();
+
+    // Periodically send Ping frames.
+    this.pingTimer = setInterval(() => {
+      if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
+        ws.ping();
+      }
+    }, pingPeriod);
+  }
+
+  /** Stop heartbeat timers (ping + pong deadline). */
+  private stopHeartbeat(): void {
+    this.clearPongDeadline();
+    if (this.pingTimer !== null) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+
+  /** Clear the pong deadline timer only. */
+  private clearPongDeadline(): void {
+    if (this.pongDeadlineTimer !== null) {
+      clearTimeout(this.pongDeadlineTimer);
+      this.pongDeadlineTimer = null;
+    }
+  }
+
   /**
    * Flush all buffered frames to the WebSocket.
    *
@@ -371,6 +461,31 @@ class WspulseClient implements Client {
   }
 
   /**
+   * Send data with a writeWait timeout.
+   *
+   * Used for control frames (close message). For buffered data frames the
+   * drain timer handles sending, and the `ws` library buffers internally,
+   * so writeWait on data frames is not enforced (matching the Node.js
+   * `ws` library's non-blocking send semantics).
+   */
+  private sendWithTimeout(data: string, timeoutMs: number): void {
+    if (this.ws.readyState !== WS_OPEN) return;
+    const timer = setTimeout(() => {
+      // Write timed out — close the socket to trigger teardown.
+      try {
+        this.ws.close(1001, "write timeout");
+      } catch {
+        // Already closed.
+      }
+    }, timeoutMs);
+    try {
+      this.ws.send(data);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Transition to CLOSED state. Releases all resources.
    *
    * @param err `null` for clean close, an Error for abnormal disconnect.
@@ -382,8 +497,9 @@ class WspulseClient implements Client {
     // Cancel any pending reconnect backoff delay.
     this.abortController.abort();
 
-    // Stop the drain timer.
+    // Stop the drain timer and heartbeat.
     this.stopDrain();
+    this.stopHeartbeat();
 
     // Flush remaining buffer (best-effort) before closing the socket.
     this.flushSendBuffer();
