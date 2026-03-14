@@ -123,14 +123,15 @@ function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * Connect to a wspulse WebSocket server.
  *
  * The returned Promise resolves once the initial WebSocket handshake completes.
- * If the handshake fails and `autoReconnect` is not configured, the Promise
- * rejects.
+ * If the initial handshake fails, the Promise rejects regardless of
+ * `autoReconnect`. Reconnect behaviour (when enabled) only applies after the
+ * first successful connection.
  *
  * @param url  WebSocket URL (e.g. `wss://host/ws`)
  * @param opts Client options (callbacks, reconnect config, etc.)
  * @returns A connected {@link Client}
  *
- * @throws Error if the initial connection fails and autoReconnect is disabled.
+ * @throws Error if the initial connection attempt fails.
  */
 export async function connect(
   url: string,
