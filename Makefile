@@ -24,9 +24,9 @@ lint: ## Run ESLint and type-check
 fmt: ## Format source files with Prettier
 	@npx prettier --write "src/**/*.ts" "test/**/*.ts"
 
-check: ## Run fmt, lint, unit tests (set INCLUDE_INTEGRATION=1 to also run integration tests)
+check: ## Run fmt-check, lint, unit tests (set INCLUDE_INTEGRATION=1 to also run integration tests)
 	@echo "── fmt ──"
-	@$(MAKE) --no-print-directory fmt
+	@npx prettier --check "src/**/*.ts" "test/**/*.ts"
 	@echo "── lint ──"
 	@$(MAKE) --no-print-directory lint
 	@echo "── test ──"
