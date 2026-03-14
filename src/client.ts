@@ -71,27 +71,33 @@ const WS_OPEN = 1;
  *
  * Resolves with the connected socket, or rejects on failure.
  * In Node.js, passes `dialHeaders` via the `ws` options parameter.
+ *
+ * Uses dynamic `import("ws")` so the function works in both Node.js ESM and
+ * CJS environments without relying on `require`, which is unavailable in ESM.
  */
-function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
-  return new Promise((resolve, reject) => {
+async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
+  // Prefer 'ws' library when available (Node.js) — it supports custom
+  // headers and has consistent binary/text handling across Node versions.
+  // Dynamic import works in both Node.js ESM and CJS; falls back to the
+  // native browser WebSocket API when 'ws' is not installed.
+  let wsImpl: { new (url: string, opts?: unknown): WS } | null = null;
+  try {
+    const mod = await import("ws");
+    wsImpl = (mod.default ?? mod) as { new (url: string, opts?: unknown): WS };
+  } catch {
+    // 'ws' not installed — will use globalThis.WebSocket below.
+  }
+
+  const hasHeaders = Object.keys(opts.dialHeaders).length > 0;
+  const wsOpts: Record<string, unknown> = {};
+  if (hasHeaders) wsOpts.headers = opts.dialHeaders;
+
+  return new Promise<WS>((resolve, reject) => {
     let ws: WS;
 
-    // Prefer 'ws' library when available (Node.js) — it supports custom
-    // headers and has consistent binary/text handling across Node versions.
-    // Fall back to the native browser WebSocket API.
-    const hasHeaders = Object.keys(opts.dialHeaders).length > 0;
-    const wsOpts: Record<string, unknown> = {};
-    if (hasHeaders) wsOpts.headers = opts.dialHeaders;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const WebSocketImpl = require("ws") as {
-        new (url: string, opts?: unknown): WS;
-      };
-      ws = new WebSocketImpl(
-        url,
-        Object.keys(wsOpts).length > 0 ? wsOpts : undefined,
-      );
-    } catch {
+    if (wsImpl !== null) {
+      ws = new wsImpl(url, Object.keys(wsOpts).length > 0 ? wsOpts : undefined);
+    } else {
       // 'ws' not available — use native WebSocket (browser environment).
       if (typeof globalThis.WebSocket === "undefined") {
         reject(
@@ -123,23 +129,36 @@ function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * Connect to a wspulse WebSocket server.
  *
  * The returned Promise resolves once the initial WebSocket handshake completes.
- * If the initial handshake fails, the Promise rejects regardless of
- * `autoReconnect`. Reconnect behaviour (when enabled) only applies after the
- * first successful connection.
+ * If `autoReconnect` is configured and the initial handshake fails, the Promise
+ * still resolves with a client in RECONNECTING state — the client will retry
+ * using the configured backoff, and `onDisconnect` fires only when all retries
+ * are exhausted. Without `autoReconnect`, a failed initial handshake rejects
+ * the Promise immediately.
  *
  * @param url  WebSocket URL (e.g. `wss://host/ws`)
  * @param opts Client options (callbacks, reconnect config, etc.)
- * @returns A connected {@link Client}
+ * @returns A {@link Client} in CONNECTED or RECONNECTING state.
  *
- * @throws Error if the initial connection attempt fails.
+ * @throws Error if the initial connection attempt fails and `autoReconnect` is
+ *         not configured.
  */
 export async function connect(
   url: string,
   opts?: ClientOptions,
 ): Promise<Client> {
   const resolved = resolveOptions(opts);
-  const ws = await dialWebSocket(url, resolved);
-  return new WspulseClient(url, resolved, ws);
+  if (!resolved.autoReconnect) {
+    // No reconnect configured: fail fast on initial dial failure.
+    const ws = await dialWebSocket(url, resolved);
+    return new WspulseClient(url, resolved, ws);
+  }
+  try {
+    const ws = await dialWebSocket(url, resolved);
+    return new WspulseClient(url, resolved, ws);
+  } catch {
+    // Initial dial failed — return a client in RECONNECTING state.
+    return new WspulseClient(url, resolved, null);
+  }
 }
 
 /**
@@ -153,7 +172,7 @@ export async function connect(
 class WspulseClient implements Client {
   private readonly url: string;
   private readonly opts: ResolvedOptions;
-  private ws: WS;
+  private ws: WS | null;
 
   /** Bounded send buffer with head-drop on overflow. */
   private readonly sendBuffer: string[] = [];
@@ -182,7 +201,7 @@ class WspulseClient implements Client {
   /** Ping interval timer — sends WebSocket Ping frames (Node.js only). */
   private pingTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(url: string, opts: ResolvedOptions, ws: WS) {
+  constructor(url: string, opts: ResolvedOptions, ws: WS | null) {
     this.url = url;
     this.opts = opts;
     this.ws = ws;
@@ -194,8 +213,13 @@ class WspulseClient implements Client {
     });
     this.doneResolve = resolve;
 
-    this.attachListeners(ws);
-    this.startHeartbeat(ws);
+    if (ws !== null) {
+      this.attachListeners(ws);
+      this.startHeartbeat(ws);
+    } else {
+      // Initial dial failed with autoReconnect configured — start retry loop.
+      void this.reconnectLoop();
+    }
   }
 
   /**
@@ -331,8 +355,8 @@ class WspulseClient implements Client {
    * - `close()` is called → CLOSED with null.
    */
   private async reconnectLoop(): Promise<void> {
-    // autoReconnect is guaranteed non-null here — called only from handleTransportDrop
-    // when this.opts.autoReconnect is truthy.
+    // autoReconnect is guaranteed non-null here — called only when
+    // this.opts.autoReconnect is truthy (from handleTransportDrop or constructor).
     const rc = this.opts.autoReconnect as NonNullable<
       typeof this.opts.autoReconnect
     >;
@@ -487,7 +511,7 @@ class WspulseClient implements Client {
    * Stops draining if the socket is not open (reconnect will restart it).
    */
   private flushSendBuffer(): void {
-    if (this.ws.readyState !== WS_OPEN) return;
+    if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
     while (this.sendBuffer.length > 0) {
       const data = this.sendBuffer.shift() as string;
       try {
@@ -510,16 +534,17 @@ class WspulseClient implements Client {
    * `writeWait` guards only this shutdown-flush path.
    */
   private sendWithTimeout(data: string, timeoutMs: number): void {
-    if (this.ws.readyState !== WS_OPEN) return;
+    if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
+    const ws = this.ws; // capture before async boundary
     const timer = setTimeout(() => {
       try {
-        this.ws.close(1001, "write timeout");
+        ws.close(1001, "write timeout");
       } catch {
         // Already closed.
       }
     }, timeoutMs);
     try {
-      this.ws.send(data);
+      ws.send(data);
     } finally {
       clearTimeout(timer);
     }
@@ -551,10 +576,12 @@ class WspulseClient implements Client {
 
     // Close the WebSocket. Suppress errors (may already be closed).
     try {
-      this.ws.onmessage = null;
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.close(1000, "");
+      if (this.ws !== null) {
+        this.ws.onmessage = null;
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.close(1000, "");
+      }
     } catch {
       // Already closed — ignore.
     }

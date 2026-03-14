@@ -172,10 +172,11 @@ const client = await connect(url, {
 ## Development
 
 ```bash
-make check     # fmt → lint → test (with race detector equivalent)
+make fmt       # auto-format source files
+make check     # validate format, lint, unit tests (fails on unformatted code)
 make test      # vitest run
 make cover     # vitest run --coverage
-make build     # tsc → dist/
+make build     # tsup → dist/ (ESM + CJS)
 ```
 
 ---
