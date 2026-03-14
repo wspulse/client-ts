@@ -489,7 +489,12 @@ class WspulseClient implements Client {
       resetPongDeadline();
     });
 
-    // Start the initial deadline.
+    // Send an initial Ping immediately so the pong deadline starts from a real
+    // ping, not from connection open. This prevents false timeouts when
+    // pingPeriod > pongWait.
+    if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
+      ws.ping();
+    }
     resetPongDeadline();
 
     // Periodically send Ping frames.

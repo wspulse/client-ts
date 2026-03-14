@@ -137,7 +137,7 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     onReconnect: opts?.onReconnect ?? noop,
     onTransportDrop: opts?.onTransportDrop ?? noop,
     autoReconnect: opts?.autoReconnect,
-    heartbeat: opts?.heartbeat ?? DEFAULT_HEARTBEAT,
+    heartbeat: opts?.heartbeat ?? { ...DEFAULT_HEARTBEAT },
     writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
