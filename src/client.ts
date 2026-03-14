@@ -500,6 +500,32 @@ class WspulseClient implements Client {
   }
 
   /**
+   * Send data with a write-deadline timeout.
+   *
+   * Used to flush buffered frames during shutdown. If a blocked socket
+   * does not complete the send within `writeWait` ms, the timer fires
+   * and closes the socket with code 1001 "write timeout".
+   *
+   * Regular data frames are sent via the one-shot drain timer in `send()`;
+   * `writeWait` guards only this shutdown-flush path.
+   */
+  private sendWithTimeout(data: string, timeoutMs: number): void {
+    if (this.ws.readyState !== WS_OPEN) return;
+    const timer = setTimeout(() => {
+      try {
+        this.ws.close(1001, "write timeout");
+      } catch {
+        // Already closed.
+      }
+    }, timeoutMs);
+    try {
+      this.ws.send(data);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Transition to CLOSED state. Releases all resources.
    *
    * @param err `null` for clean close, an Error for abnormal disconnect.
@@ -515,8 +541,10 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
 
-    // Flush remaining buffer (best-effort) before closing the socket.
-    this.flushSendBuffer();
+    // Flush remaining buffer with write deadline before closing.
+    while (this.sendBuffer.length > 0) {
+      this.sendWithTimeout(this.sendBuffer.shift() as string, this.opts.writeWait);
+    }
 
     // Close the WebSocket. Suppress errors (may already be closed).
     try {

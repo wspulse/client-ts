@@ -6,6 +6,7 @@ describe("resolveOptions", () => {
   it("returns defaults when no options provided", () => {
     const opts = resolveOptions();
     expect(opts.maxMessageSize).toBe(1 << 20);
+    expect(opts.writeWait).toBe(10_000);
     expect(opts.heartbeat.pingPeriod).toBe(20_000);
     expect(opts.heartbeat.pongWait).toBe(60_000);
     expect(opts.autoReconnect).toBeUndefined();
@@ -15,10 +16,12 @@ describe("resolveOptions", () => {
   it("preserves user-provided values", () => {
     const opts = resolveOptions({
       maxMessageSize: 2048,
+      writeWait: 5000,
       autoReconnect: { maxRetries: 3, baseDelay: 100, maxDelay: 5000 },
       dialHeaders: { Authorization: "Bearer token" },
     });
     expect(opts.maxMessageSize).toBe(2048);
+    expect(opts.writeWait).toBe(5000);
     expect(opts.autoReconnect?.maxRetries).toBe(3);
     expect(opts.dialHeaders.Authorization).toBe("Bearer token");
   });
@@ -74,6 +77,7 @@ describe("resolveOptions", () => {
   it("handles empty options object", () => {
     const opts = resolveOptions({});
     expect(opts.maxMessageSize).toBe(1 << 20);
+    expect(opts.writeWait).toBe(10_000);
     expect(opts.autoReconnect).toBeUndefined();
   });
 });

@@ -41,7 +41,7 @@ describe("connect", () => {
 
   it("rejects with options when server is unreachable", async () => {
     await expect(
-      connect("ws://127.0.0.1:19999"),
+      connect("ws://127.0.0.1:19999", { writeWait: 5000 }),
     ).rejects.toThrow("wspulse: dial failed");
   });
 });
