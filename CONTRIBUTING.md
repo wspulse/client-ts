@@ -24,7 +24,10 @@ Run `make check` before every commit. It runs in order:
 
 1. `make fmt` — formats all source files with Prettier
 2. `make lint` — runs ESLint and `tsc --noEmit`; must pass with zero warnings
-3. `make test` — runs vitest; must pass
+3. `make test` — runs vitest unit tests; must pass
+4. `make test-integration` — integration tests; requires Go 1.22+ and the
+   `wspulse/server` sibling repo checked out at `../server`. Run with
+   `INCLUDE_INTEGRATION=1 make check` to include in the full gate.
 
 If any step fails, do not commit.
 
