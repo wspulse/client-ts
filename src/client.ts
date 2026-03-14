@@ -168,7 +168,7 @@ class WspulseClient implements Client {
   readonly done: Promise<void>;
 
   /** Drain timer for flushing the send buffer. */
-  private drainTimer: ReturnType<typeof setInterval> | null = null;
+  private drainTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** AbortController for cancelling the reconnect loop. */
   private abortController: AbortController;
@@ -195,7 +195,6 @@ class WspulseClient implements Client {
     this.doneResolve = resolve;
 
     this.attachListeners(ws);
-    this.startDrain();
     this.startHeartbeat(ws);
   }
 
@@ -214,6 +213,7 @@ class WspulseClient implements Client {
       this.sendBuffer.shift();
     }
     this.sendBuffer.push(data);
+    this.startDrain();
   }
 
   /**
@@ -399,20 +399,23 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Start the drain timer that flushes the send buffer at a fixed interval.
+   * Start the drain timer that flushes the send buffer after a short delay.
    *
-   * The interval is short (5 ms) to keep latency low while batching in
-   * the rare case of many rapid sends.
+   * Uses a one-shot timer so idle clients do not incur continuous wakeups.
+   * Called from send() and after a successful reconnect.
    */
   private startDrain(): void {
-    this.stopDrain();
-    this.drainTimer = setInterval(() => this.flushSendBuffer(), 5);
+    if (this.drainTimer !== null) return;
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = null;
+      this.flushSendBuffer();
+    }, 5);
   }
 
   /** Stop the drain timer. */
   private stopDrain(): void {
     if (this.drainTimer !== null) {
-      clearInterval(this.drainTimer);
+      clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
   }
