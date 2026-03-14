@@ -234,11 +234,46 @@ class WspulseClient implements Client {
     ws.onmessage = (ev) => {
       if (this.closed || this.disconnectFired) return;
 
-      // maxMessageSize enforcement: close connection if exceeded.
-      const raw = String(ev.data);
+      // Decode ev.data to a string and measure its UTF-8 byte length.
+      // wspulse sends JSON text frames; binary frames are decoded as UTF-8.
+      const data = ev.data;
+      let raw: string;
+      let byteLength: number;
+
+      if (typeof data === "string") {
+        raw = data;
+        byteLength =
+          typeof Buffer !== "undefined"
+            ? Buffer.byteLength(raw, "utf8")
+            : new TextEncoder().encode(raw).byteLength;
+      } else if (typeof Buffer !== "undefined" && Buffer.isBuffer(data)) {
+        byteLength = (data as Buffer).byteLength;
+        raw = (data as Buffer).toString("utf8");
+      } else if (data instanceof ArrayBuffer) {
+        byteLength = data.byteLength;
+        raw = new TextDecoder("utf-8").decode(new Uint8Array(data));
+      } else if (ArrayBuffer.isView(data)) {
+        byteLength = data.byteLength;
+        raw = new TextDecoder("utf-8").decode(
+          new Uint8Array(
+            data.buffer as ArrayBuffer,
+            data.byteOffset,
+            data.byteLength,
+          ),
+        );
+      } else {
+        // Fallback for unexpected types (e.g. Blob in browsers).
+        raw = String(data);
+        byteLength =
+          typeof Buffer !== "undefined"
+            ? Buffer.byteLength(raw, "utf8")
+            : new TextEncoder().encode(raw).byteLength;
+      }
+
+      // maxMessageSize enforcement: close if exceeded (measured in bytes).
       if (
         this.opts.maxMessageSize > 0 &&
-        raw.length > this.opts.maxMessageSize
+        byteLength > this.opts.maxMessageSize
       ) {
         // Detach onclose to avoid double-firing handleTransportDrop.
         ws.onclose = null;
