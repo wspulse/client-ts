@@ -15,7 +15,13 @@ export const SERVER_URL_FILE = path.resolve(__dirname, ".server-url");
 
 let serverProc: ChildProcess | null = null;
 
-export async function setup(): Promise<void> {
+/**
+ * Vitest globalSetup entry point.
+ *
+ * Spawns the Go testserver, waits for the READY handshake, and returns the
+ * teardown function that Vitest calls after all integration tests complete.
+ */
+export default async function globalSetup(): Promise<() => Promise<void>> {
   const cwd = path.resolve(__dirname, "..", "testserver");
 
   serverProc = spawn("go", ["run", "."], {
@@ -85,29 +91,29 @@ export async function setup(): Promise<void> {
 
   // Write URL to a temp file so test workers can read it.
   writeFileSync(SERVER_URL_FILE, url, "utf-8");
-}
 
-export async function teardown(): Promise<void> {
-  // Clean up temp file.
-  try {
-    unlinkSync(SERVER_URL_FILE);
-  } catch {
-    // Ignore if already cleaned.
-  }
+  return async function globalTeardown(): Promise<void> {
+    // Clean up temp file.
+    try {
+      unlinkSync(SERVER_URL_FILE);
+    } catch {
+      // Ignore if already cleaned.
+    }
 
-  if (serverProc && !serverProc.killed) {
-    serverProc.kill("SIGTERM");
-    const proc = serverProc;
-    // Wait for exit (max 5 s) to avoid zombie processes.
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(() => {
-        proc.kill("SIGKILL");
-        resolve();
-      }, 5_000);
-      proc.on("exit", () => {
-        clearTimeout(t);
-        resolve();
+    if (serverProc && !serverProc.killed) {
+      serverProc.kill("SIGTERM");
+      const proc = serverProc;
+      // Wait for exit (max 5 s) to avoid zombie processes.
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(() => {
+          proc.kill("SIGKILL");
+          resolve();
+        }, 5_000);
+        proc.on("exit", () => {
+          clearTimeout(t);
+          resolve();
+        });
       });
-    });
-  }
+    }
+  };
 }

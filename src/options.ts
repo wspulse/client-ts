@@ -17,17 +17,19 @@ export interface AutoReconnectOptions {
 }
 
 /**
- * Client-side heartbeat timing expectations.
+ * Client-side heartbeat configuration.
  *
- * These values configure the client's expectation of server-side Ping timing.
- * The wspulse server sends WebSocket Ping frames every `pingPeriod` and
- * expects a Pong within `pongWait`. Standard WebSocket libraries respond
- * to Pong automatically.
+ * The client sends WebSocket Ping frames every `pingPeriod` ms.
+ * If no Pong is received within `pongWait` ms, the connection is considered
+ * dead and the transport is closed.
+ *
+ * Note: browser environments have no programmatic Ping/Pong API — heartbeat
+ * monitoring is a no-op there; the browser engine handles keepalive internally.
  */
 export interface HeartbeatOptions {
-  /** Expected server ping period in milliseconds. */
+  /** Interval between client-sent Ping frames, in milliseconds. */
   pingPeriod: number;
-  /** Max wait for pong before considering connection dead, in milliseconds. */
+  /** Pong deadline in milliseconds; connection closes if no Pong is received. */
   pongWait: number;
 }
 

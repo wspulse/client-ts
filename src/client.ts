@@ -115,10 +115,22 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
       ws.onerror = null;
       resolve(ws);
     };
+    // Capture the actual Error from Node.js ws 'error' event before onerror
+    // fires; avoids "[object Event]" in the reject message.
+    let lastError: Error | null = null;
+    if (typeof ws.on === "function") {
+      ws.on("error", (err: unknown) => {
+        if (err instanceof Error) lastError = err;
+      });
+    }
     ws.onerror = (ev) => {
       ws.onopen = null;
       ws.onerror = null;
-      reject(new Error(`wspulse: dial failed: ${String(ev)}`));
+      const msg =
+        lastError?.message ??
+        (ev as { message?: string }).message ??
+        "connection failed";
+      reject(new Error(`wspulse: dial failed: ${msg}`));
     };
   });
 }
@@ -530,24 +542,42 @@ class WspulseClient implements Client {
    * does not complete the send within `writeWait` ms, the timer fires
    * and closes the socket with code 1001 "write timeout".
    *
+   * In Node.js (ws library) the callback form `send(data, cb)` fires after
+   * the data is handed off to the kernel, so the deadline is cleared only
+   * on true write completion. In browsers `send()` has no completion callback
+   * and the call is best-effort with no enforced deadline.
+   *
    * Regular data frames are sent via the one-shot drain timer in `send()`;
    * `writeWait` guards only this shutdown-flush path.
    */
   private sendWithTimeout(data: string, timeoutMs: number): void {
     if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
-    const ws = this.ws; // capture before async boundary
+    const ws = this.ws;
+
+    // Browsers do not surface write-completion events — send is best-effort.
+    if (typeof ws.on !== "function") {
+      ws.send(data);
+      return;
+    }
+
+    // Node.js ws: use the callback form so the deadline clears only after the
+    // data has been handed off to the kernel. If the timer fires first the
+    // socket is closed, which will abort any in-progress send.
+    let settled = false;
     const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       try {
         ws.close(1001, "write timeout");
       } catch {
         // Already closed.
       }
     }, timeoutMs);
-    try {
-      ws.send(data);
-    } finally {
+    (ws.send as (d: string, cb: (err?: Error) => void) => void)(data, () => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-    }
+    });
   }
 
   /**
