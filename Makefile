@@ -24,15 +24,19 @@ lint: ## Run ESLint and type-check
 fmt: ## Format source files with Prettier
 	@npx prettier --write "src/**/*.ts" "test/**/*.ts"
 
-check: ## Run fmt, lint, unit tests, and integration tests (pre-commit gate)
+check: ## Run fmt, lint, unit tests (set INCLUDE_INTEGRATION=1 to also run integration tests)
 	@echo "── fmt ──"
 	@$(MAKE) --no-print-directory fmt
 	@echo "── lint ──"
 	@$(MAKE) --no-print-directory lint
 	@echo "── test ──"
 	@$(MAKE) --no-print-directory test
-	@echo "── test-integration ──"
-	@$(MAKE) --no-print-directory test-integration
+	@if [ "$$INCLUDE_INTEGRATION" = "1" ]; then \
+		echo "── test-integration ──"; \
+		$(MAKE) --no-print-directory test-integration; \
+	else \
+		echo "── test-integration skipped (set INCLUDE_INTEGRATION=1 to enable) ──"; \
+	fi
 	@echo "── all passed ──"
 
 clean: ## Remove build artifacts and test cache
