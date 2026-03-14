@@ -543,7 +543,10 @@ class WspulseClient implements Client {
 
     // Flush remaining buffer with write deadline before closing.
     while (this.sendBuffer.length > 0) {
-      this.sendWithTimeout(this.sendBuffer.shift() as string, this.opts.writeWait);
+      this.sendWithTimeout(
+        this.sendBuffer.shift() as string,
+        this.opts.writeWait,
+      );
     }
 
     // Close the WebSocket. Suppress errors (may already be closed).

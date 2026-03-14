@@ -72,7 +72,10 @@ export async function setup(): Promise<void> {
     const onExit = (code: number | null) => {
       if (settled) return;
       settled = true;
-      cleanup(true, new Error(`testserver exited prematurely with code ${code}`));
+      cleanup(
+        true,
+        new Error(`testserver exited prematurely with code ${code}`),
+      );
     };
 
     rl.on("line", onLine);
