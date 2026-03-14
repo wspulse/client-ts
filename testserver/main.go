@@ -4,8 +4,8 @@
 //   - ?reject=1        → ConnectFunc returns an error (HTTP 401)
 //   - ?room=<id>       → assigns the connection to room <id> (default: "test")
 //   - ?id=<id>         → sets connectionID (default: auto-generated UUID)
-//   - ?echo=1          → echoes every inbound frame back to sender (default: on)
-//   - ?broadcast=1     → broadcasts inbound frames to all connections in room
+//
+// Inbound frames are always echoed back to the sender.
 //
 // The server prints "READY:<port>" to stderr once listening. The global-setup
 // script in vitest reads this line to discover the port.
