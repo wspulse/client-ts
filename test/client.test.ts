@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { connect } from "../src/client.js";
 import { ConnectionClosedError } from "../src/errors.js";
@@ -68,11 +68,12 @@ describe("client lifecycle", () => {
     });
 
     testClient.send({ event: "msg", payload: "hello" });
-    await delay(50);
 
-    expect(received.length).toBe(1);
-    expect(received[0].event).toBe("msg");
-    expect(received[0].payload).toBe("hello");
+    await vi.waitFor(() => {
+      expect(received.length).toBe(1);
+      expect(received[0].event).toBe("msg");
+      expect(received[0].payload).toBe("hello");
+    });
 
     testClient.close();
     await testClient.done;
@@ -178,8 +179,7 @@ describe("auto-reconnect", () => {
 
     // Send a message before drop.
     testClient.send({ event: "before" });
-    await delay(50);
-    expect(received.length).toBe(1);
+    await vi.waitFor(() => expect(received.length).toBe(1));
 
     // Terminate all connections then close server, then start a new one on the same port.
     for (const ws of server.clients) ws.terminate();
@@ -194,14 +194,16 @@ describe("auto-reconnect", () => {
     testServer = newServer;
 
     // Wait for reconnection.
-    await delay(500);
-
-    expect(transportDropCount).toBeGreaterThanOrEqual(1);
-    expect(reconnectAttempts.length).toBeGreaterThanOrEqual(1);
+    await vi.waitFor(() => {
+      expect(transportDropCount).toBeGreaterThanOrEqual(1);
+      expect(reconnectAttempts.length).toBeGreaterThanOrEqual(1);
+    });
 
     // Send a message after reconnect.
     testClient.send({ event: "after" });
-    await delay(100);
+    await vi.waitFor(() =>
+      expect(received.filter((f) => f.event === "after").length).toBe(1),
+    );
 
     const afterMessages = received.filter((f) => f.event === "after");
     expect(afterMessages.length).toBe(1);
