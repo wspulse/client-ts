@@ -27,30 +27,57 @@ export async function setup(): Promise<void> {
 
   // Wait for the "READY:<port>" line on stderr (max 30 s).
   const url = await new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("testserver did not become ready within 30 s"));
-    }, 30_000);
+    let settled = false;
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guaranteed non-null after spawn
     const rl = createInterface({ input: proc.stderr! });
-    rl.on("line", (line: string) => {
-      const m = line.match(/READY:(\d+)/);
-      if (m) {
-        clearTimeout(timeout);
-        rl.close();
-        resolve(`ws://127.0.0.1:${m[1]}`);
+
+    const cleanup = (killProc: boolean, err?: Error, url?: string) => {
+      clearTimeout(timeout);
+      rl.removeListener("line", onLine);
+      rl.close();
+      proc.removeListener("error", onError);
+      proc.removeListener("exit", onExit);
+      if (killProc && !proc.killed) {
+        try {
+          proc.kill();
+        } catch {
+          // Ignore — process may have already exited.
+        }
       }
-    });
+      if (err) reject(err);
+      else if (url) resolve(url);
+    };
 
-    proc.on("error", (err: Error) => {
-      clearTimeout(timeout);
-      reject(new Error(`testserver failed to start: ${err.message}`));
-    });
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup(true, new Error("testserver did not become ready within 30 s"));
+    }, 30_000);
 
-    proc.on("exit", (code: number | null) => {
-      clearTimeout(timeout);
-      reject(new Error(`testserver exited prematurely with code ${code}`));
-    });
+    const onLine = (line: string) => {
+      const m = line.match(/READY:(\d+)/);
+      if (m && !settled) {
+        settled = true;
+        cleanup(false, undefined, `ws://127.0.0.1:${m[1]}`);
+      }
+    };
+
+    const onError = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup(true, new Error(`testserver failed to start: ${err.message}`));
+    };
+
+    const onExit = (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup(true, new Error(`testserver exited prematurely with code ${code}`));
+    };
+
+    rl.on("line", onLine);
+    proc.on("error", onError);
+    proc.on("exit", onExit);
   });
 
   // Write URL to a temp file so test workers can read it.
