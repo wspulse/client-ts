@@ -23,11 +23,6 @@ function createEchoServer(): { server: WebSocketServer; url: string } {
   return { server, url: `ws://127.0.0.1:${addr.port}` };
 }
 
-/** Wait for a specified number of milliseconds. */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 // ── test state ──────────────────────────────────────────────────────────────────
 
 let testServer: WebSocketServer | null = null;
@@ -241,10 +236,14 @@ describe("auto-reconnect", () => {
     testServer = server;
 
     let disconnectErr: Error | null | undefined;
+    let transportDropped = false;
 
     testClient = await connect(url, {
       onDisconnect: (err) => {
         disconnectErr = err;
+      },
+      onTransportDrop: () => {
+        transportDropped = true;
       },
       autoReconnect: { maxRetries: 10, baseDelay: 200, maxDelay: 1000 },
     });
@@ -254,8 +253,8 @@ describe("auto-reconnect", () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     testServer = null;
 
-    // Wait a moment for the reconnect loop to start, then close.
-    await delay(100);
+    // Wait for the transport drop (reconnect loop has started), then close.
+    await vi.waitFor(() => expect(transportDropped).toBe(true));
     testClient.close();
     await testClient.done;
 
@@ -323,7 +322,7 @@ describe("multiple messages", () => {
       testClient.send({ event: "seq", payload: i });
     }
 
-    await delay(200);
+    await vi.waitFor(() => expect(received.length).toBe(10));
 
     expect(received.length).toBe(10);
     for (let i = 0; i < 10; i++) {
