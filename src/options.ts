@@ -71,8 +71,6 @@ export interface ClientOptions {
   autoReconnect?: AutoReconnectOptions;
   /** Heartbeat timing expectations. Defaults to 20 s ping / 60 s pong. */
   heartbeat?: HeartbeatOptions;
-  /** Write deadline in milliseconds. Default: 10 000 (10 s). */
-  writeWait?: number;
   /** Max inbound message size in bytes. Default: 1 MiB (1 048 576). */
   maxMessageSize?: number;
   /**
@@ -92,9 +90,6 @@ const DEFAULT_HEARTBEAT: HeartbeatOptions = {
   pongWait: 60_000,
 };
 
-/** @internal Default write deadline: 10 seconds. */
-const DEFAULT_WRITE_WAIT = 10_000;
-
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
 
@@ -111,7 +106,6 @@ export interface ResolvedOptions {
   onTransportDrop: (err: Error) => void;
   autoReconnect: AutoReconnectOptions | undefined;
   heartbeat: HeartbeatOptions;
-  writeWait: number;
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
 }
@@ -136,7 +130,6 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     onTransportDrop: opts?.onTransportDrop ?? noop,
     autoReconnect: opts?.autoReconnect,
     heartbeat: opts?.heartbeat ?? DEFAULT_HEARTBEAT,
-    writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
   };

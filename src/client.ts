@@ -497,31 +497,6 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Send data with a writeWait timeout.
-   *
-   * Used for control frames (close message). For buffered data frames the
-   * drain timer handles sending, and the `ws` library buffers internally,
-   * so writeWait on data frames is not enforced (matching the Node.js
-   * `ws` library's non-blocking send semantics).
-   */
-  private sendWithTimeout(data: string, timeoutMs: number): void {
-    if (this.ws.readyState !== WS_OPEN) return;
-    const timer = setTimeout(() => {
-      // Write timed out — close the socket to trigger teardown.
-      try {
-        this.ws.close(1001, "write timeout");
-      } catch {
-        // Already closed.
-      }
-    }, timeoutMs);
-    try {
-      this.ws.send(data);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  /**
    * Transition to CLOSED state. Releases all resources.
    *
    * @param err `null` for clean close, an Error for abnormal disconnect.
