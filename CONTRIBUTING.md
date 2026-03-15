@@ -22,7 +22,7 @@ Requires: Node.js 20+, npm 10+.
 
 Run `make check` before every commit. It runs in order:
 
-1. `make fmt` — formats all source files with Prettier
+1. `prettier --check` — validates formatting (does **not** auto-format; run `make fmt` to fix)
 2. `make lint` — runs ESLint and `tsc --noEmit`; must pass with zero warnings
 3. `make test` — runs vitest unit tests; must pass
 4. `make test-integration` — integration tests; requires Go 1.22+ and the

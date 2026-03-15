@@ -19,8 +19,8 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 make fmt        # format with Prettier
 make lint       # ESLint + tsc --noEmit
 make test       # vitest run
-make check      # fmt + lint + test (pre-commit gate)
-make build      # tsc -p tsconfig.build.json → dist/
+make check      # prettier --check + lint + test (pre-commit gate)
+make build      # tsup → dist/
 make test-cover # vitest with v8 coverage
 make clean      # remove dist/ and coverage/
 ```

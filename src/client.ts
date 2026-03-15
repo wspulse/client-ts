@@ -167,8 +167,11 @@ export async function connect(
   try {
     const ws = await dialWebSocket(url, resolved);
     return new WspulseClient(url, resolved, ws);
-  } catch {
-    // Initial dial failed — return a client in RECONNECTING state.
+  } catch (err) {
+    // Initial dial failed — surface the root cause via onTransportDrop so
+    // callers can log/observe it, then enter RECONNECTING state.
+    const cause = err instanceof Error ? err : new Error(String(err));
+    resolved.onTransportDrop(cause);
     return new WspulseClient(url, resolved, null);
   }
 }
@@ -529,8 +532,9 @@ class WspulseClient implements Client {
    */
   private flushSendBuffer(): void {
     if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
-    while (this.sendBuffer.length > 0) {
-      const data = this.sendBuffer.shift() as string;
+    // splice(0) grabs all frames in O(n) — avoids O(n²) from repeated shift().
+    const frames = this.sendBuffer.splice(0);
+    for (const data of frames) {
       try {
         this.ws.send(data);
       } catch {
