@@ -80,7 +80,7 @@ await client.done;
 
 ## Frame Format
 
-Every message exchanged between server and client is a JSON text frame:
+The default `JSONCodec` encodes frames as JSON text frames:
 
 ```json
 {
@@ -90,7 +90,25 @@ Every message exchanged between server and client is a JSON text frame:
 }
 ```
 
-The `event` field is the routing key on the server side. Set `frame.event` to match the handler registered with `r.On("chat.message", ...)` on the server. The `payload` field carries arbitrary JSON — the library does not inspect it.
+To use a custom wire format (e.g. Protocol Buffers), implement the `Codec` interface:
+
+```ts
+import type { Codec, Frame } from "@wspulse/client";
+
+const myCodec: Codec = {
+  binaryType: "binary",
+  encode(frame: Frame): Uint8Array {
+    // serialize to binary
+  },
+  decode(data: string | Uint8Array): Frame {
+    // deserialize from binary
+  },
+};
+
+const client = await connect(url, { codec: myCodec });
+```
+
+The `event` field is the routing key on the server side. Set `frame.event` to match the handler registered with `r.On("chat.message", ...)` on the server. The `payload` field carries arbitrary data — the codec determines how it is serialized.
 
 ```ts
 // Send a typed frame — server routes by "event"
@@ -123,6 +141,8 @@ const client = await connect(url, {
 | `Client`                | Interface: `send()`, `close()`, `done`          |
 | `connect(url, opts?)`   | Connect and return a `Client`                   |
 | `Frame`                 | Interface: `{ id?, event?, payload? }`          |
+| `Codec`                 | Interface: `encode()`, `decode()`, `binaryType` |
+| `JSONCodec`             | Default codec — JSON text frames                |
 | `ClientOptions`         | Options object type                             |
 | `ConnectionClosedError` | Thrown by `send()` after `close()`              |
 | `RetriesExhaustedError` | Passed to `onDisconnect` when retries exceeded  |
@@ -138,6 +158,7 @@ const client = await connect(url, {
 | `onReconnect`     | `(attempt: number) => void`           | no-op             |
 | `onTransportDrop` | `(err: Error) => void`                | no-op             |
 | `autoReconnect`   | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
+| `codec`           | `Codec`                               | `JSONCodec`       |
 | `heartbeat`       | `{ pingPeriod, pongWait }` (ms)       | 20 000 / 60 000   |
 | `writeWait`       | `number` (ms)                         | 10 000            |
 | `maxMessageSize`  | `number` (bytes)                      | 1 MiB (1 048 576) |

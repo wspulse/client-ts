@@ -55,7 +55,7 @@ interface WS {
   onclose: ((ev: { code: number; reason: string }) => void) | null;
   onerror: ((ev: unknown) => void) | null;
   onopen: ((ev: unknown) => void) | null;
-  send(data: string | ArrayBuffer | Uint8Array): void;
+  send(data: string | ArrayBuffer | Uint8Array | Blob): void;
   close(code?: number, reason?: string): void;
   /** Node.js `ws` library: register event listener (ping, pong, etc.). */
   on?(event: string, listener: (...args: unknown[]) => void): void;
@@ -190,7 +190,7 @@ class WspulseClient implements Client {
   private ws: WS | null;
 
   /** Bounded send buffer with head-drop on overflow. */
-  private readonly sendBuffer: string[] = [];
+  private readonly sendBuffer: (string | Uint8Array)[] = [];
 
   /** Whether the client is permanently closed. */
   private closed = false;
@@ -228,6 +228,12 @@ class WspulseClient implements Client {
     });
     this.doneResolve = resolve;
 
+    // For binary codecs in browsers, set binaryType so data arrives as
+    // ArrayBuffer instead of Blob.
+    if (opts.codec.binaryType === "binary" && ws !== null) {
+      (ws as unknown as { binaryType: string }).binaryType = "arraybuffer";
+    }
+
     if (ws !== null) {
       this.attachListeners(ws);
       this.startHeartbeat(ws);
@@ -246,7 +252,7 @@ class WspulseClient implements Client {
     if (this.closed) {
       throw new ConnectionClosedError();
     }
-    const data = JSON.stringify(frame);
+    const data = this.opts.codec.encode(frame);
     if (this.sendBuffer.length >= SEND_BUFFER_SIZE) {
       // Head-drop: remove oldest frame to make room.
       this.sendBuffer.shift();
@@ -274,40 +280,39 @@ class WspulseClient implements Client {
     ws.onmessage = (ev) => {
       if (this.closed || this.disconnectFired) return;
 
-      // Decode ev.data to a string and measure its UTF-8 byte length.
-      // wspulse sends JSON text frames; binary frames are decoded as UTF-8.
+      // Normalize ev.data into `string | Uint8Array` for the Codec and
+      // measure the raw byte length for maxMessageSize enforcement.
       const data = ev.data;
-      let raw: string;
+      let normalized: string | Uint8Array;
       let byteLength: number;
 
       if (typeof data === "string") {
-        raw = data;
+        normalized = data;
         byteLength =
           typeof Buffer !== "undefined"
-            ? Buffer.byteLength(raw, "utf8")
-            : new TextEncoder().encode(raw).byteLength;
+            ? Buffer.byteLength(data, "utf8")
+            : new TextEncoder().encode(data).byteLength;
       } else if (typeof Buffer !== "undefined" && Buffer.isBuffer(data)) {
-        byteLength = (data as Buffer).byteLength;
-        raw = (data as Buffer).toString("utf8");
+        const buf = data as Buffer;
+        byteLength = buf.byteLength;
+        normalized = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
       } else if (data instanceof ArrayBuffer) {
         byteLength = data.byteLength;
-        raw = new TextDecoder("utf-8").decode(new Uint8Array(data));
+        normalized = new Uint8Array(data);
       } else if (ArrayBuffer.isView(data)) {
         byteLength = data.byteLength;
-        raw = new TextDecoder("utf-8").decode(
-          new Uint8Array(
-            data.buffer as ArrayBuffer,
-            data.byteOffset,
-            data.byteLength,
-          ),
+        normalized = new Uint8Array(
+          data.buffer as ArrayBuffer,
+          data.byteOffset,
+          data.byteLength,
         );
       } else {
-        // Fallback for unexpected types (e.g. Blob in browsers).
-        raw = String(data);
-        byteLength =
-          typeof Buffer !== "undefined"
-            ? Buffer.byteLength(raw, "utf8")
-            : new TextEncoder().encode(raw).byteLength;
+        // Unsupported payload type (e.g. Blob when binaryType was not set
+        // to "arraybuffer"). Close with 1003 "unsupported data".
+        ws.onclose = null;
+        ws.close(1003, "unsupported payload type");
+        this.handleTransportDrop();
+        return;
       }
 
       // maxMessageSize enforcement: close if exceeded (measured in bytes).
@@ -323,7 +328,7 @@ class WspulseClient implements Client {
       }
 
       try {
-        const frame = JSON.parse(raw) as Frame;
+        const frame = this.opts.codec.decode(normalized);
         this.opts.onMessage(frame);
       } catch {
         // Decode error — drop frame silently (matches Go behaviour).
@@ -405,6 +410,10 @@ class WspulseClient implements Client {
 
         // Swap connection and restart listeners + drain + heartbeat.
         this.ws = newWs;
+        if (this.opts.codec.binaryType === "binary") {
+          (newWs as unknown as { binaryType: string }).binaryType =
+            "arraybuffer";
+        }
         this.attachListeners(newWs);
         this.startDrain();
         this.startHeartbeat(newWs);
@@ -534,9 +543,9 @@ class WspulseClient implements Client {
     if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
     // splice(0) grabs all frames in O(n) — avoids O(n²) from repeated shift().
     const frames = this.sendBuffer.splice(0);
-    for (const data of frames) {
+    for (const encoded of frames) {
       try {
-        this.ws.send(data);
+        this.ws.send(encoded);
       } catch {
         // Write error — the onclose handler will fire and trigger teardown.
         return;
@@ -559,7 +568,7 @@ class WspulseClient implements Client {
    * Regular data frames are sent via the one-shot drain timer in `send()`;
    * `writeWait` guards only this shutdown-flush path.
    */
-  private sendWithTimeout(data: string, timeoutMs: number): void {
+  private sendWithTimeout(data: string | Uint8Array, timeoutMs: number): void {
     if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
     const ws = this.ws;
 
@@ -582,11 +591,21 @@ class WspulseClient implements Client {
         // Already closed.
       }
     }, timeoutMs);
-    (ws.send as (d: string, cb: (err?: Error) => void) => void)(data, () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-    });
+    (ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void)(
+      data,
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (err) {
+          try {
+            ws.close(1001, "write error");
+          } catch {
+            // Already closed.
+          }
+        }
+      },
+    );
   }
 
   /**
@@ -608,7 +627,7 @@ class WspulseClient implements Client {
     // Flush remaining buffer with write deadline before closing.
     while (this.sendBuffer.length > 0) {
       this.sendWithTimeout(
-        this.sendBuffer.shift() as string,
+        this.sendBuffer.shift() as string | Uint8Array,
         this.opts.writeWait,
       );
     }

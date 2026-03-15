@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { resolveOptions } from "../src/options.js";
+import { JSONCodec } from "../src/codec.js";
 import type { Frame } from "../src/frame.js";
 
 describe("resolveOptions", () => {
@@ -11,6 +12,7 @@ describe("resolveOptions", () => {
     expect(opts.heartbeat.pongWait).toBe(60_000);
     expect(opts.autoReconnect).toBeUndefined();
     expect(opts.dialHeaders).toEqual({});
+    expect(opts.codec).toBe(JSONCodec);
   });
 
   it("preserves user-provided values", () => {

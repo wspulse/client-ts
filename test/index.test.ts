@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   connect,
   backoff,
+  JSONCodec,
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
@@ -29,6 +30,13 @@ describe("index re-exports", () => {
   it("exports ConnectionLostError", () => {
     const err = new ConnectionLostError();
     expect(err).toBeInstanceOf(Error);
+  });
+
+  it("exports JSONCodec", () => {
+    expect(JSONCodec).toBeDefined();
+    expect(JSONCodec.binaryType).toBe("text");
+    expect(typeof JSONCodec.encode).toBe("function");
+    expect(typeof JSONCodec.decode).toBe("function");
   });
 });
 

@@ -1,4 +1,6 @@
 import type { Frame } from "./frame.js";
+import type { Codec } from "./codec.js";
+import { JSONCodec } from "./codec.js";
 
 /**
  * Configuration for exponential backoff reconnection.
@@ -69,6 +71,13 @@ export interface ClientOptions {
    */
   onTransportDrop?: (err: Error) => void;
 
+  /**
+   * Wire-format codec for encoding/decoding {@link Frame}s.
+   *
+   * Defaults to {@link JSONCodec} (JSON text frames). Provide a custom
+   * implementation (e.g. Protocol Buffers) to use binary frames.
+   */
+  codec?: Codec;
   /** Enable exponential backoff reconnection. Disabled by default. */
   autoReconnect?: AutoReconnectOptions;
   /** Heartbeat timing expectations. Defaults to 20 s ping / 60 s pong. */
@@ -111,6 +120,7 @@ export interface ResolvedOptions {
   onDisconnect: (err: Error | null) => void;
   onReconnect: (attempt: number) => void;
   onTransportDrop: (err: Error) => void;
+  codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
   heartbeat: HeartbeatOptions;
   writeWait: number;
@@ -136,6 +146,7 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     onDisconnect: opts?.onDisconnect ?? noop,
     onReconnect: opts?.onReconnect ?? noop,
     onTransportDrop: opts?.onTransportDrop ?? noop,
+    codec: opts?.codec ?? JSONCodec,
     autoReconnect: opts?.autoReconnect,
     heartbeat: opts?.heartbeat ?? { ...DEFAULT_HEARTBEAT },
     writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
