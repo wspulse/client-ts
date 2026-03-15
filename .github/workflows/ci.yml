@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'refactor/**', 'bugfix/**', 'fix/**']
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/instructions/**'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/instructions/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+
+      - name: Lint
+        run: npx eslint src/ test/
+
+      - name: Type check
+        run: npx tsc --noEmit
+      
+      - name: Run unit tests
+        run: npx vitest run
+
+  # Integration tests require Go and the wspulse/core + wspulse/server repos
+  # as siblings. Only runs on pushes to main — this is the gate before tagging.
+  test-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    needs: [check]
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - name: Check out client-ts
+        uses: actions/checkout@v4
+        with:
+          path: client-ts
+
+      - name: Check out core
+        uses: actions/checkout@v4
+        with:
+          repository: wspulse/core
+          path: core
+
+      - name: Check out server
+        uses: actions/checkout@v4
+        with:
+          repository: wspulse/server
+          path: server
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: client-ts/testserver/go.sum
+
+      - name: Set up Go workspace
+        run: go work init ./client-ts/testserver ./core ./server
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: client-ts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client-ts
+        run: npm ci
+
+      - name: Run integration tests
+        working-directory: client-ts
+        run: npx vitest run -c vitest.integration.config.ts
