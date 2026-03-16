@@ -177,7 +177,7 @@ const client = await connect(url, {
 - **Permanent disconnect callback** — `onDisconnect` fires exactly once when the client is truly done (`close()` called, retries exhausted, or connection lost without auto-reconnect).
 - **Heartbeat** — Client-side Ping/Pong keeps the connection alive and detects silently-dead servers. Node.js only (browsers handle Ping/Pong automatically at the protocol level).
 - **Max message size** — Inbound messages exceeding `maxMessageSize` are rejected with close code 1009.
-- **Backpressure** — bounded 256-frame send buffer; oldest frame is dropped (head-drop) when full.
+- **Backpressure** — bounded 256-frame send buffer; throws `SendBufferFullError` when full.
 - **`done` Promise** — resolves when the client reaches CLOSED state. Await it to block until permanently disconnected.
 
 ---

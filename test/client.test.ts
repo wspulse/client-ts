@@ -1,7 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { connect } from "../src/client.js";
-import { ConnectionClosedError, RetriesExhaustedError, SendBufferFullError } from "../src/errors.js";
+import {
+  ConnectionClosedError,
+  RetriesExhaustedError,
+  SendBufferFullError,
+} from "../src/errors.js";
 import type { Frame } from "../src/frame.js";
 import type { Client } from "../src/client.js";
 
@@ -289,9 +293,9 @@ describe("send buffer overflow", () => {
     }
 
     // The 257th send must throw SendBufferFullError.
-    expect(() =>
-      testClient?.send({ event: "msg", payload: 256 }),
-    ).toThrow(SendBufferFullError);
+    expect(() => testClient?.send({ event: "msg", payload: 256 })).toThrow(
+      SendBufferFullError,
+    );
 
     testClient.close();
     await testClient.done;

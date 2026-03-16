@@ -190,7 +190,7 @@ class WspulseClient implements Client {
   private readonly opts: ResolvedOptions;
   private ws: WS | null;
 
-  /** Bounded send buffer with head-drop on overflow. */
+  /** Bounded send buffer (throws when full). */
   private readonly sendBuffer: (string | Uint8Array)[] = [];
 
   /** Whether the client is permanently closed. */
