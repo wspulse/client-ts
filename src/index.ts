@@ -13,4 +13,5 @@ export {
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
+  SendBufferFullError,
 } from "./errors.js";

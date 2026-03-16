@@ -5,6 +5,7 @@ import {
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
+  SendBufferFullError,
 } from "./errors.js";
 import { backoff } from "./backoff.js";
 
@@ -18,10 +19,10 @@ export interface Client {
   /**
    * Enqueue a Frame for delivery.
    *
-   * Non-blocking. If the internal send buffer is full, the **oldest** frame
-   * is dropped (head-drop) to make room.
+   * Non-blocking.
    *
    * @throws {@link ConnectionClosedError} if the client is in CLOSED state.
+   * @throws {@link SendBufferFullError} if the internal send buffer is full.
    */
   send(frame: Frame): void;
 
@@ -189,7 +190,7 @@ class WspulseClient implements Client {
   private readonly opts: ResolvedOptions;
   private ws: WS | null;
 
-  /** Bounded send buffer with head-drop on overflow. */
+  /** Bounded send buffer (throws when full). */
   private readonly sendBuffer: (string | Uint8Array)[] = [];
 
   /** Whether the client is permanently closed. */
@@ -247,6 +248,7 @@ class WspulseClient implements Client {
    * Enqueue a Frame for delivery.
    *
    * @throws {@link ConnectionClosedError} if the client is in CLOSED state.
+   * @throws {@link SendBufferFullError} if the internal send buffer is full.
    */
   send(frame: Frame): void {
     if (this.closed) {
@@ -254,8 +256,7 @@ class WspulseClient implements Client {
     }
     const data = this.opts.codec.encode(frame);
     if (this.sendBuffer.length >= SEND_BUFFER_SIZE) {
-      // Head-drop: remove oldest frame to make room.
-      this.sendBuffer.shift();
+      throw new SendBufferFullError();
     }
     this.sendBuffer.push(data);
     this.startDrain();

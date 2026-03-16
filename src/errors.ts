@@ -34,3 +34,16 @@ export class ConnectionLostError extends Error {
     this.name = "ConnectionLostError";
   }
 }
+
+/**
+ * Thrown by {@link Client.send} when the internal send buffer is full.
+ *
+ * The caller should handle this error explicitly — for example by retrying,
+ * discarding the frame, or closing the connection.
+ */
+export class SendBufferFullError extends Error {
+  constructor() {
+    super("wspulse: send buffer full");
+    this.name = "SendBufferFullError";
+  }
+}
