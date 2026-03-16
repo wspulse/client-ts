@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { connect } from "../src/client.js";
-import { ConnectionClosedError, RetriesExhaustedError } from "../src/errors.js";
+import { ConnectionClosedError, RetriesExhaustedError, SendBufferFullError } from "../src/errors.js";
 import type { Frame } from "../src/frame.js";
 import type { Client } from "../src/client.js";
 
@@ -263,13 +263,12 @@ describe("auto-reconnect", () => {
   });
 });
 
-describe("send buffer head-drop", () => {
-  it("drops oldest frame when buffer is full", async () => {
+describe("send buffer overflow", () => {
+  it("throws SendBufferFullError when buffer is full", async () => {
     const { server } = createEchoServer();
     testServer = server;
 
-    // Temporarily stop the echo server from accepting so buffer fills up.
-    // Use a custom server that doesn't echo — just accepts.
+    // Use a server that accepts but doesn't echo — let send buffer fill.
     await new Promise<void>((resolve) => server.close(() => resolve()));
 
     const silentServer = new WebSocketServer({ port: 0 });
@@ -284,16 +283,15 @@ describe("send buffer head-drop", () => {
 
     testClient = await connect(silentUrl);
 
-    // Fill beyond the 256 buffer.
-    for (let i = 0; i < 300; i++) {
+    // Fill up the 256-frame buffer — should not throw.
+    for (let i = 0; i < 256; i++) {
       testClient.send({ event: "msg", payload: i });
     }
 
-    // Should not throw — head-drop handles overflow silently.
-    // Just verify we can still send without error.
+    // The 257th send must throw SendBufferFullError.
     expect(() =>
-      testClient?.send({ event: "msg", payload: 300 }),
-    ).not.toThrow();
+      testClient?.send({ event: "msg", payload: 256 }),
+    ).toThrow(SendBufferFullError);
 
     testClient.close();
     await testClient.done;
