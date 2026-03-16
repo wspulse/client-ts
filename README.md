@@ -1,6 +1,8 @@
 # wspulse/client-ts
 
 [![npm](https://img.shields.io/npm/v/@wspulse/client-ts)](https://www.npmjs.com/package/@wspulse/client-ts)
+[![CI](https://github.com/wspulse/client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/wspulse/client-ts/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A TypeScript WebSocket client with optional automatic reconnection, designed for use with [wspulse/server](https://github.com/wspulse/server).
 
