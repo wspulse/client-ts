@@ -1,5 +1,7 @@
 # wspulse/client-ts
 
+[![npm](https://img.shields.io/npm/v/@wspulse/client-ts)](https://www.npmjs.com/package/@wspulse/client-ts)
+
 A TypeScript WebSocket client with optional automatic reconnection, designed for use with [wspulse/server](https://github.com/wspulse/server).
 
 Works in **Node.js 20+** (via [`ws`](https://github.com/websockets/ws)) and **browsers** (native `WebSocket`).
