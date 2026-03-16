@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** with automatic reconnection and exponential backoff. Package name: `@wspulse/client`. Supports both browser (native WebSocket) and Node.js (`ws` package as peer dependency).
+wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** with automatic reconnection and exponential backoff. Package name: `@wspulse/client-ts`. Supports both browser (native WebSocket) and Node.js (`ws` package as peer dependency).
 
 ## Architecture
 

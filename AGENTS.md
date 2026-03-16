@@ -9,7 +9,7 @@ making any changes.
 
 ## Quick Reference
 
-**Package**: `@wspulse/client` | **Module system**: ESM-first
+**Package**: `@wspulse/client-ts` | **Module system**: ESM-first
 
 **Key files**:
 

@@ -4,7 +4,7 @@ A TypeScript WebSocket client with optional automatic reconnection, designed for
 
 Works in **Node.js 20+** (via [`ws`](https://github.com/websockets/ws)) and **browsers** (native `WebSocket`).
 
-**Status:** v0 — API is being stabilized. Package: `@wspulse/client`.
+**Status:** v0 — API is being stabilized. Package: `@wspulse/client-ts`.
 
 ---
 
@@ -21,7 +21,7 @@ Works in **Node.js 20+** (via [`ws`](https://github.com/websockets/ws)) and **br
 ## Install
 
 ```bash
-npm install @wspulse/client
+npm install @wspulse/client-ts
 ```
 
 Node.js also needs the `ws` peer dependency:
@@ -39,7 +39,7 @@ npm install ws
 ### Node.js
 
 ```ts
-import { connect } from "@wspulse/client";
+import { connect } from "@wspulse/client-ts";
 
 const client = await connect("ws://localhost:8080/ws?room=r1&token=xyz", {
   onMessage(frame) {
@@ -62,7 +62,7 @@ await client.done;
 
 ```html
 <script type="module">
-  import { connect } from "@wspulse/client";
+  import { connect } from "@wspulse/client-ts";
 
   const client = await connect("wss://api.example.com/ws?room=lobby", {
     onMessage(frame) {
@@ -93,7 +93,7 @@ The default `JSONCodec` encodes frames as JSON text frames:
 To use a custom wire format (e.g. Protocol Buffers), implement the `Codec` interface:
 
 ```ts
-import type { Codec, Frame } from "@wspulse/client";
+import type { Codec, Frame } from "@wspulse/client-ts";
 
 const myCodec: Codec = {
   binaryType: "binary",
