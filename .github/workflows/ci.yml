@@ -74,14 +74,20 @@ jobs:
           repository: wspulse/server
           path: server
 
+      - name: Check out testserver
+        uses: actions/checkout@v4
+        with:
+          repository: wspulse/testserver
+          path: testserver
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-          cache-dependency-path: client-ts/testserver/go.sum
+          cache-dependency-path: testserver/go.sum
 
       - name: Set up Go workspace
-        run: go work init ./client-ts/testserver ./core ./server
+        run: go work init ./testserver ./core ./server
 
       - name: Set up Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4

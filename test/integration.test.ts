@@ -18,16 +18,21 @@ import type { Client } from "../src/client.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// The URL is written by global-setup.ts to a temp file.
-function serverUrl(): string {
+// The URLs are written by global-setup.ts to a temp file (one per line).
+function serverUrls(): { wsUrl: string; controlUrl: string } {
   const urlFile = path.resolve(__dirname, ".server-url");
   try {
-    return readFileSync(urlFile, "utf-8").trim();
+    const lines = readFileSync(urlFile, "utf-8").trim().split("\n");
+    return { wsUrl: lines[0], controlUrl: lines[1] };
   } catch {
     throw new Error(
       "integration test: .server-url not found — is global-setup running?",
     );
   }
+}
+
+function serverUrl(): string {
+  return serverUrls().wsUrl;
 }
 
 // ── test state ──────────────────────────────────────────────────────────────────
