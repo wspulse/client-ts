@@ -21,7 +21,6 @@ coverage/
 
 # Integration test temp files
 test/.server-url
-testserver/testserver
 .env.*
 !.env.example
 

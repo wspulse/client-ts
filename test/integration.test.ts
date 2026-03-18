@@ -18,16 +18,28 @@ import type { Client } from "../src/client.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// The URL is written by global-setup.ts to a temp file.
-function serverUrl(): string {
+// The URLs are written by global-setup.ts to a temp file (one per line).
+function serverUrls(): { wsUrl: string; controlUrl: string } {
   const urlFile = path.resolve(__dirname, ".server-url");
+  let content: string;
   try {
-    return readFileSync(urlFile, "utf-8").trim();
+    content = readFileSync(urlFile, "utf-8");
   } catch {
     throw new Error(
       "integration test: .server-url not found — is global-setup running?",
     );
   }
+  const lines = content.trim().split(/\r?\n/);
+  if (lines.length !== 2 || !lines[0] || !lines[1]) {
+    throw new Error(
+      `integration test: .server-url invalid format — expected 2 URLs, got ${lines.length}`,
+    );
+  }
+  return { wsUrl: lines[0], controlUrl: lines[1] };
+}
+
+function serverUrl(): string {
+  return serverUrls().wsUrl;
 }
 
 // ── test state ──────────────────────────────────────────────────────────────────
@@ -156,5 +168,103 @@ describe("integration: wspulse/server", () => {
 
     expect(received[0]?.event).toBe("ping");
     expect(received[0]?.payload).toBe("pong");
+  });
+
+  it("concurrent sends do not race", async () => {
+    const received: Frame[] = [];
+
+    testClient = await connect(serverUrl(), {
+      onMessage(frame) {
+        received.push(frame);
+      },
+    });
+
+    const senders = 50;
+    const msgsPerSender = 5;
+    const total = senders * msgsPerSender;
+
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+
+    await Promise.all(
+      Array.from({ length: senders }, (_, s) =>
+        Promise.resolve().then(() => {
+          for (let m = 0; m < msgsPerSender; m++) {
+            client.send({ event: "concurrent", payload: { s, m } });
+          }
+        }),
+      ),
+    );
+
+    await vi.waitFor(() => expect(received.length).toBe(total), {
+      timeout: 10000,
+    });
+
+    expect(received.every((f) => f.event === "concurrent")).toBe(true);
+  });
+
+  it("onDisconnect fires exactly once on close", async () => {
+    let disconnectCount = 0;
+
+    testClient = await connect(serverUrl(), {
+      onDisconnect() {
+        disconnectCount++;
+      },
+    });
+
+    testClient.close();
+    await testClient.done;
+
+    // Brief window for any erroneous second call.
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(disconnectCount).toBe(1);
+  });
+
+  it("close is idempotent", async () => {
+    let disconnectCount = 0;
+
+    testClient = await connect(serverUrl(), {
+      onDisconnect() {
+        disconnectCount++;
+      },
+    });
+
+    // Call close multiple times concurrently.
+    testClient.close();
+    testClient.close();
+    testClient.close();
+    await testClient.done;
+
+    expect(disconnectCount).toBe(1);
+  });
+
+  it("detects server-initiated kick via control API", async () => {
+    const connectionId = "kick-test-ts";
+    let disconnectErr: Error | null | undefined;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+    });
+
+    // Kick the connection via control API.
+    const { controlUrl } = serverUrls();
+    const res = await fetch(`${controlUrl}/kick?id=${connectionId}`, {
+      method: "POST",
+    });
+    expect(res.ok).toBe(true);
+
+    // Wait for onDisconnect to fire.
+    await disconnected;
+
+    // Server-initiated close → client sees an Error instance.
+    expect(disconnectErr).toBeInstanceOf(Error);
   });
 });

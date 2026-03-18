@@ -1,12 +1,12 @@
 /**
- * Vitest global setup: spawns the Go testserver before integration tests.
+ * Vitest global setup: spawns the shared Go testserver before integration tests.
  *
- * Reads "READY:<port>" from the process stderr to discover the listening port,
- * then writes the URL to a temp file that integration tests read.
+ * Reads "READY:<ws_port>:<control_port>" from the process stderr to discover
+ * both ports, then writes the URLs to a temp file that integration tests read.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
-import { writeFileSync, unlinkSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +22,14 @@ let serverProc: ChildProcess | null = null;
  * teardown function that Vitest calls after all integration tests complete.
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
-  const cwd = path.resolve(__dirname, "..", "testserver");
+  const cwd = path.resolve(__dirname, "..", "..", "testserver");
+
+  if (!existsSync(cwd)) {
+    throw new Error(
+      `testserver directory not found at ${cwd} — ` +
+        "check out wspulse/testserver as a sibling of client-ts",
+    );
+  }
 
   serverProc = spawn("go", ["run", "."], {
     cwd,
@@ -31,14 +38,14 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   const proc = serverProc;
 
-  // Wait for the "READY:<port>" line on stderr (max 30 s).
-  const url = await new Promise<string>((resolve, reject) => {
+  // Wait for the "READY:<ws_port>:<control_port>" line on stderr (max 30 s).
+  const urls = await new Promise<string>((resolve, reject) => {
     let settled = false;
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guaranteed non-null after spawn
     const rl = createInterface({ input: proc.stderr! });
 
-    const cleanup = (killProc: boolean, err?: Error, url?: string) => {
+    const cleanup = (killProc: boolean, err?: Error, urls?: string) => {
       clearTimeout(timeout);
       rl.removeListener("line", onLine);
       rl.close();
@@ -52,7 +59,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         }
       }
       if (err) reject(err);
-      else if (url) resolve(url);
+      else if (urls) resolve(urls);
     };
 
     const timeout = setTimeout(() => {
@@ -62,10 +69,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     }, 30_000);
 
     const onLine = (line: string) => {
-      const m = line.match(/READY:(\d+)/);
+      const m = line.match(/READY:(\d+):(\d+)/);
       if (m && !settled) {
         settled = true;
-        cleanup(false, undefined, `ws://127.0.0.1:${m[1]}`);
+        const wsUrl = `ws://127.0.0.1:${m[1]}`;
+        const controlUrl = `http://127.0.0.1:${m[2]}`;
+        cleanup(false, undefined, `${wsUrl}\n${controlUrl}`);
       }
     };
 
@@ -89,8 +98,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     proc.on("exit", onExit);
   });
 
-  // Write URL to a temp file so test workers can read it.
-  writeFileSync(SERVER_URL_FILE, url, "utf-8");
+  // Write URLs to a temp file so test workers can read them.
+  writeFileSync(SERVER_URL_FILE, urls, "utf-8");
 
   return async function globalTeardown(): Promise<void> {
     // Clean up temp file.

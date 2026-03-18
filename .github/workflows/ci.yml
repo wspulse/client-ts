@@ -23,10 +23,10 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -58,33 +58,39 @@ jobs:
         node-version: [20, 22]
     steps:
       - name: Check out client-ts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: client-ts
 
       - name: Check out core
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: wspulse/core
           path: core
 
       - name: Check out server
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: wspulse/server
           path: server
 
+      - name: Check out testserver
+        uses: actions/checkout@v6
+        with:
+          repository: wspulse/testserver
+          path: testserver
+
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 'stable'
-          cache-dependency-path: client-ts/testserver/go.sum
+          cache-dependency-path: testserver/go.sum
 
       - name: Set up Go workspace
-        run: go work init ./client-ts/testserver ./core ./server
+        run: go work init ./testserver ./core ./server
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
