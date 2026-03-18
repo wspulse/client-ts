@@ -264,7 +264,7 @@ describe("integration: wspulse/server", () => {
     // Wait for onDisconnect to fire.
     await disconnected;
 
-    // Server-initiated close → client sees a non-null error.
-    expect(disconnectErr).not.toBeNull();
+    // Server-initiated close → client sees an Error instance.
+    expect(disconnectErr).toBeInstanceOf(Error);
   });
 });
