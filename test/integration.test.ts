@@ -183,11 +183,14 @@ describe("integration: wspulse/server", () => {
     const msgsPerSender = 5;
     const total = senders * msgsPerSender;
 
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+
     await Promise.all(
       Array.from({ length: senders }, (_, s) =>
         Promise.resolve().then(() => {
           for (let m = 0; m < msgsPerSender; m++) {
-            testClient!.send({ event: "concurrent", payload: { s, m } });
+            client.send({ event: "concurrent", payload: { s, m } });
           }
         }),
       ),
