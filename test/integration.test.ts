@@ -12,7 +12,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { connect } from "../src/client.js";
-import { ConnectionClosedError } from "../src/errors.js";
+import {
+  ConnectionClosedError,
+  ConnectionLostError,
+  RetriesExhaustedError,
+} from "../src/errors.js";
 import type { Frame } from "../src/frame.js";
 import type { Client } from "../src/client.js";
 
@@ -266,5 +270,167 @@ describe("integration: wspulse/server", () => {
 
     // Server-initiated close → client sees an Error instance.
     expect(disconnectErr).toBeInstanceOf(Error);
+  });
+
+  it("reconnects after kick and resumes echo (scenario 3)", async () => {
+    const connectionId = "reconnect-test-ts";
+    const received: Frame[] = [];
+    const reconnectAttempts: number[] = [];
+    let reconnectedResolve: () => void = () => {};
+    const reconnected = new Promise<void>((r) => {
+      reconnectedResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onMessage(frame) {
+        received.push(frame);
+      },
+      onReconnect(attempt) {
+        reconnectAttempts.push(attempt);
+        reconnectedResolve();
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 100, maxDelay: 500 },
+    });
+
+    // Verify echo works before kick.
+    testClient.send({ event: "before", payload: "kick" });
+    await vi.waitFor(
+      () => expect(received.some((f) => f.event === "before")).toBe(true),
+      { timeout: 5000 },
+    );
+
+    // Kick the connection via control API.
+    const { controlUrl } = serverUrls();
+    const res = await fetch(`${controlUrl}/kick?id=${connectionId}`, {
+      method: "POST",
+    });
+    expect(res.ok).toBe(true);
+
+    // Wait for at least one reconnect attempt.
+    await reconnected;
+
+    // Wait a bit for the new connection to be fully established.
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Send after reconnect — echo should still work.
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+    client.send({ event: "after", payload: "reconnect" });
+
+    await vi.waitFor(
+      () => expect(received.some((f) => f.event === "after")).toBe(true),
+      { timeout: 5000 },
+    );
+
+    expect(reconnectAttempts.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("fires RetriesExhaustedError after shutdown (scenario 4)", async () => {
+    const connectionId = "retries-test-ts";
+    let disconnectErr: Error | null | undefined;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+      autoReconnect: { maxRetries: 2, baseDelay: 50, maxDelay: 100 },
+    });
+
+    // Shut down the WebSocket server — all reconnect dials will fail.
+    const { controlUrl } = serverUrls();
+    const shutRes = await fetch(`${controlUrl}/shutdown`, { method: "POST" });
+    expect(shutRes.ok).toBe(true);
+
+    // Wait for onDisconnect to fire (retries exhausted).
+    await disconnected;
+
+    expect(disconnectErr).toBeInstanceOf(RetriesExhaustedError);
+
+    // Restart the server so subsequent tests can use it.
+    const restartRes = await fetch(`${controlUrl}/restart`, {
+      method: "POST",
+    });
+    expect(restartRes.ok).toBe(true);
+  });
+
+  it("close() during reconnect fires onDisconnect(null) (scenario 5)", async () => {
+    const connectionId = "close-reconnect-ts";
+    let disconnectErr: Error | null | undefined;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+    let transportDropResolve: () => void = () => {};
+    const transportDropped = new Promise<void>((r) => {
+      transportDropResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+      onTransportDrop() {
+        transportDropResolve();
+      },
+      autoReconnect: { maxRetries: 10, baseDelay: 500, maxDelay: 2000 },
+    });
+
+    // Kick the connection to start the reconnect loop.
+    const { controlUrl } = serverUrls();
+    const res = await fetch(`${controlUrl}/kick?id=${connectionId}`, {
+      method: "POST",
+    });
+    expect(res.ok).toBe(true);
+
+    // Wait for the transport drop (reconnect loop has started).
+    await transportDropped;
+
+    // Close the client while it's in the reconnect loop.
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+    client.close();
+
+    // Wait for onDisconnect.
+    await disconnected;
+
+    // User-initiated close during reconnect → onDisconnect(null).
+    expect(disconnectErr).toBeNull();
+  });
+
+  it("pong timeout triggers ConnectionLostError (scenario 7)", async () => {
+    const received: Frame[] = [];
+    let disconnectErr: Error | null | undefined;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    // Connect with ignore_pings=1 so the server never sends Pong replies.
+    // Short heartbeat so the test completes quickly.
+    testClient = await connect(serverUrl() + "?ignore_pings=1", {
+      onMessage: (f) => received.push(f),
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+      heartbeat: { pingPeriod: 100, pongWait: 300 },
+    });
+
+    // Verify the data channel works (echo).
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+    client.send({ event: "echo", payload: "hello" });
+    await vi.waitFor(() => expect(received.length).toBe(1));
+    expect(received[0]).toEqual({ event: "echo", payload: "hello" });
+
+    // Wait for pong timeout → transport drop → ConnectionLostError.
+    await disconnected;
+    expect(disconnectErr).toBeInstanceOf(ConnectionLostError);
   });
 });
