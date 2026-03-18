@@ -441,20 +441,17 @@ describe("integration: wspulse/server", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
-    let transportDropResolve: () => void = () => {};
-    const transportDropped = new Promise<void>((r) => {
-      transportDropResolve = r;
-    });
 
     testClient = await connect(serverUrl() + `?id=${connectionId}`, {
       onDisconnect(err) {
         disconnectErr = err;
         disconnectResolve();
       },
-      onTransportDrop() {
-        transportDropResolve();
+      onReconnect() {
+        // Close while the reconnect loop is active — guarantees loop is running.
+        testClient?.close();
       },
-      autoReconnect: { maxRetries: 10, baseDelay: 500, maxDelay: 2000 },
+      autoReconnect: { maxRetries: 10, baseDelay: 100, maxDelay: 500 },
     });
 
     // Kick the connection to start the reconnect loop.
@@ -463,14 +460,6 @@ describe("integration: wspulse/server", () => {
       method: "POST",
     });
     expect(res.ok).toBe(true);
-
-    // Wait for the transport drop (reconnect loop has started).
-    await transportDropped;
-
-    // Close the client while it's in the reconnect loop.
-    const client = testClient;
-    if (!client) throw new Error("client not connected");
-    client.close();
 
     // Wait for onDisconnect.
     await disconnected;
