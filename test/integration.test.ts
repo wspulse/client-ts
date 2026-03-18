@@ -21,14 +21,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The URLs are written by global-setup.ts to a temp file (one per line).
 function serverUrls(): { wsUrl: string; controlUrl: string } {
   const urlFile = path.resolve(__dirname, ".server-url");
+  let content: string;
   try {
-    const lines = readFileSync(urlFile, "utf-8").trim().split("\n");
-    return { wsUrl: lines[0], controlUrl: lines[1] };
+    content = readFileSync(urlFile, "utf-8");
   } catch {
     throw new Error(
       "integration test: .server-url not found — is global-setup running?",
     );
   }
+  const lines = content.trim().split(/\r?\n/);
+  if (lines.length !== 2 || !lines[0] || !lines[1]) {
+    throw new Error(
+      `integration test: .server-url invalid format — expected 2 URLs, got ${lines.length}`,
+    );
+  }
+  return { wsUrl: lines[0], controlUrl: lines[1] };
 }
 
 function serverUrl(): string {
