@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] `npm run check` passes (format → lint → type-check → test)
+- [ ] `make check` passes (format → lint → type-check → test)
 - [ ] Each commit represents exactly one logical change
 - [ ] Commit messages follow the format in `commit-message-instructions.md`
 - [ ] No unrelated code reformatting in this PR
