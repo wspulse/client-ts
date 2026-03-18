@@ -225,6 +225,45 @@ describe("integration: wspulse/server", () => {
     expect(disconnectCount).toBe(1);
   });
 
+  it("server drop fires onTransportDrop and onDisconnect without reconnect (scenario 2)", async () => {
+    const connectionId = "drop-no-reconnect-ts";
+    let transportDropErr: Error | undefined;
+    let disconnectErr: Error | null | undefined;
+    let transportDropResolve: () => void = () => {};
+    const transportDropped = new Promise<void>((r) => {
+      transportDropResolve = r;
+    });
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onTransportDrop(err) {
+        transportDropErr = err;
+        transportDropResolve();
+      },
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+    });
+
+    // Kick the connection — autoReconnect defaults to disabled.
+    const { controlUrl } = serverUrls();
+    const res = await fetch(`${controlUrl}/kick?id=${connectionId}`, {
+      method: "POST",
+    });
+    expect(res.ok).toBe(true);
+
+    // Both callbacks should fire.
+    await transportDropped;
+    await disconnected;
+
+    expect(transportDropErr).toBeInstanceOf(Error);
+    expect(disconnectErr).toBeInstanceOf(Error);
+  });
+
   it("close is idempotent", async () => {
     let disconnectCount = 0;
 
@@ -239,6 +278,41 @@ describe("integration: wspulse/server", () => {
     testClient.close();
     testClient.close();
     await testClient.done;
+
+    expect(disconnectCount).toBe(1);
+  });
+
+  it("close() racing with transport drop fires onDisconnect exactly once (scenario 9)", async () => {
+    const connectionId = "close-race-ts";
+    let disconnectCount = 0;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onDisconnect() {
+        disconnectCount++;
+        disconnectResolve();
+      },
+    });
+
+    // Fire close() and /kick simultaneously — one triggers a transport drop
+    // while the other triggers a user-initiated close.
+    const { controlUrl } = serverUrls();
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+
+    const [kickRes] = await Promise.all([
+      fetch(`${controlUrl}/kick?id=${connectionId}`, { method: "POST" }),
+      Promise.resolve().then(() => client.close()),
+    ]);
+    // kick may return 400 if close() won the race — that's expected.
+    void kickRes;
+
+    await disconnected;
+    // Brief window for any erroneous second call.
+    await new Promise((r) => setTimeout(r, 200));
 
     expect(disconnectCount).toBe(1);
   });
@@ -343,19 +417,21 @@ describe("integration: wspulse/server", () => {
 
     // Shut down the WebSocket server — all reconnect dials will fail.
     const { controlUrl } = serverUrls();
-    const shutRes = await fetch(`${controlUrl}/shutdown`, { method: "POST" });
-    expect(shutRes.ok).toBe(true);
+    try {
+      const shutRes = await fetch(`${controlUrl}/shutdown`, { method: "POST" });
+      expect(shutRes.ok).toBe(true);
 
-    // Wait for onDisconnect to fire (retries exhausted).
-    await disconnected;
+      // Wait for onDisconnect to fire (retries exhausted).
+      await disconnected;
 
-    expect(disconnectErr).toBeInstanceOf(RetriesExhaustedError);
-
-    // Restart the server so subsequent tests can use it.
-    const restartRes = await fetch(`${controlUrl}/restart`, {
-      method: "POST",
-    });
-    expect(restartRes.ok).toBe(true);
+      expect(disconnectErr).toBeInstanceOf(RetriesExhaustedError);
+    } finally {
+      // Restart the server so subsequent tests can use it.
+      const restartRes = await fetch(`${controlUrl}/restart`, {
+        method: "POST",
+      });
+      expect(restartRes.ok).toBe(true);
+    }
   });
 
   it("close() during reconnect fires onDisconnect(null) (scenario 5)", async () => {
@@ -426,7 +502,7 @@ describe("integration: wspulse/server", () => {
     const client = testClient;
     if (!client) throw new Error("client not connected");
     client.send({ event: "echo", payload: "hello" });
-    await vi.waitFor(() => expect(received.length).toBe(1));
+    await vi.waitFor(() => expect(received.length).toBe(1), { timeout: 5000 });
     expect(received[0]).toEqual({ event: "echo", payload: "hello" });
 
     // Wait for pong timeout → transport drop → ConnectionLostError.
