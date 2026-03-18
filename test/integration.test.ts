@@ -169,4 +169,100 @@ describe("integration: wspulse/server", () => {
     expect(received[0]?.event).toBe("ping");
     expect(received[0]?.payload).toBe("pong");
   });
+
+  it("concurrent sends do not race", async () => {
+    const received: Frame[] = [];
+
+    testClient = await connect(serverUrl(), {
+      onMessage(frame) {
+        received.push(frame);
+      },
+    });
+
+    const senders = 50;
+    const msgsPerSender = 5;
+    const total = senders * msgsPerSender;
+
+    await Promise.all(
+      Array.from({ length: senders }, (_, s) =>
+        Promise.resolve().then(() => {
+          for (let m = 0; m < msgsPerSender; m++) {
+            testClient!.send({ event: "concurrent", payload: { s, m } });
+          }
+        }),
+      ),
+    );
+
+    await vi.waitFor(() => expect(received.length).toBe(total), {
+      timeout: 10000,
+    });
+
+    expect(received.every((f) => f.event === "concurrent")).toBe(true);
+  });
+
+  it("onDisconnect fires exactly once on close", async () => {
+    let disconnectCount = 0;
+
+    testClient = await connect(serverUrl(), {
+      onDisconnect() {
+        disconnectCount++;
+      },
+    });
+
+    testClient.close();
+    await testClient.done;
+
+    // Brief window for any erroneous second call.
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(disconnectCount).toBe(1);
+  });
+
+  it("close is idempotent", async () => {
+    let disconnectCount = 0;
+
+    testClient = await connect(serverUrl(), {
+      onDisconnect() {
+        disconnectCount++;
+      },
+    });
+
+    // Call close multiple times concurrently.
+    testClient.close();
+    testClient.close();
+    testClient.close();
+    await testClient.done;
+
+    expect(disconnectCount).toBe(1);
+  });
+
+  it("detects server-initiated kick via control API", async () => {
+    const connectionId = "kick-test-ts";
+    let disconnectErr: Error | null | undefined;
+    let disconnectResolve: () => void;
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+
+    testClient = await connect(serverUrl() + `?id=${connectionId}`, {
+      onDisconnect(err) {
+        disconnectErr = err;
+        disconnectResolve();
+      },
+    });
+
+    // Kick the connection via control API.
+    const { controlUrl } = serverUrls();
+    const res = await fetch(
+      `${controlUrl}/kick?id=${connectionId}`,
+      { method: "POST" },
+    );
+    expect(res.ok).toBe(true);
+
+    // Wait for onDisconnect to fire.
+    await disconnected;
+
+    // Server-initiated close → client sees a non-null error.
+    expect(disconnectErr).not.toBeNull();
+  });
 });
