@@ -253,10 +253,9 @@ describe("integration: wspulse/server", () => {
 
     // Kick the connection via control API.
     const { controlUrl } = serverUrls();
-    const res = await fetch(
-      `${controlUrl}/kick?id=${connectionId}`,
-      { method: "POST" },
-    );
+    const res = await fetch(`${controlUrl}/kick?id=${connectionId}`, {
+      method: "POST",
+    });
     expect(res.ok).toBe(true);
 
     // Wait for onDisconnect to fire.
