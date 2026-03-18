@@ -62,6 +62,8 @@ interface WS {
   on?(event: string, listener: (...args: unknown[]) => void): void;
   /** Node.js `ws` library: send a WebSocket Ping frame. */
   ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
+  /** Node.js `ws` library: forcefully destroy the socket without close handshake. */
+  terminate?(): void;
 }
 
 /** WebSocket readyState constants. */
@@ -492,8 +494,13 @@ class WspulseClient implements Client {
     const resetPongDeadline = () => {
       this.clearPongDeadline();
       this.pongDeadlineTimer = setTimeout(() => {
-        // Server failed to respond — close WS to trigger transport drop.
-        ws.close(1001, "pong timeout");
+        // Server failed to respond — forcefully destroy the socket so the
+        // close event fires immediately without waiting for a close handshake.
+        if (typeof ws.terminate === "function") {
+          ws.terminate();
+        } else {
+          ws.close(1001, "pong timeout");
+        }
       }, pongWait);
     };
 
