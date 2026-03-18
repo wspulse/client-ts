@@ -242,7 +242,7 @@ describe("integration: wspulse/server", () => {
   it("detects server-initiated kick via control API", async () => {
     const connectionId = "kick-test-ts";
     let disconnectErr: Error | null | undefined;
-    let disconnectResolve: () => void;
+    let disconnectResolve: () => void = () => {};
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });

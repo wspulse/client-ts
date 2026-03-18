@@ -6,7 +6,7 @@
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
-import { writeFileSync, unlinkSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +23,13 @@ let serverProc: ChildProcess | null = null;
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const cwd = path.resolve(__dirname, "..", "..", "testserver");
+
+  if (!existsSync(cwd)) {
+    throw new Error(
+      `testserver directory not found at ${cwd} — ` +
+        "check out wspulse/testserver as a sibling of client-ts",
+    );
+  }
 
   serverProc = spawn("go", ["run", "."], {
     cwd,
