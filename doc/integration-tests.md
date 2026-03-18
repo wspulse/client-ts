@@ -11,17 +11,17 @@ Integration tests run against a live `wspulse/server` via the shared
 
 ## Scenario Matrix
 
-| #   | Scenario                                                      | Test Name                                                        | Query Params       |
-| --- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ |
-| 1   | Connect → send → echo → close clean                          | `connects, sends a frame, receives echo, and closes cleanly`     | —                  |
-| 2   | Server drops → onTransportDrop + onDisconnect (no reconnect)  | `onDisconnect fires exactly once on close`                       | —                  |
-| 3   | Auto-reconnect: server drops → reconnects within maxRetries   | `reconnects after kick and resumes echo (scenario 3)`            | `?id=…`            |
-| 4   | Max retries exhausted → `onDisconnect(RetriesExhaustedError)` | `fires RetriesExhaustedError after shutdown (scenario 4)`        | `?id=…`            |
-| 5   | `close()` during reconnect → loop stops, `onDisconnect(null)` | `close() during reconnect fires onDisconnect(null) (scenario 5)` | `?id=…`            |
-| 6   | `send()` on closed client → `ConnectionClosedError`           | `send after close throws ConnectionClosedError`                  | —                  |
-| 7   | Heartbeat pong timeout → `ConnectionLostError`                | `pong timeout triggers ConnectionLostError (scenario 7)`         | `?ignore_pings=1`  |
-| 8   | Concurrent sends: no data race or interleaving                | N/A — single-threaded JS (see Additional Tests)                  | —                  |
-| 9   | Concurrent close + transport drop → onDisconnect exactly once | `close is idempotent`                                            | —                  |
+| #   | Scenario                                                      | Test Name                                                        | Query Params      |
+| --- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------- |
+| 1   | Connect → send → echo → close clean                           | `connects, sends a frame, receives echo, and closes cleanly`     | —                 |
+| 2   | Server drops → onTransportDrop + onDisconnect (no reconnect)  | `onDisconnect fires exactly once on close`                       | —                 |
+| 3   | Auto-reconnect: server drops → reconnects within maxRetries   | `reconnects after kick and resumes echo (scenario 3)`            | `?id=…`           |
+| 4   | Max retries exhausted → `onDisconnect(RetriesExhaustedError)` | `fires RetriesExhaustedError after shutdown (scenario 4)`        | `?id=…`           |
+| 5   | `close()` during reconnect → loop stops, `onDisconnect(null)` | `close() during reconnect fires onDisconnect(null) (scenario 5)` | `?id=…`           |
+| 6   | `send()` on closed client → `ConnectionClosedError`           | `send after close throws ConnectionClosedError`                  | —                 |
+| 7   | Heartbeat pong timeout → `ConnectionLostError`                | `pong timeout triggers ConnectionLostError (scenario 7)`         | `?ignore_pings=1` |
+| 8   | Concurrent sends: no data race or interleaving                | N/A — single-threaded JS (see Additional Tests)                  | —                 |
+| 9   | Concurrent close + transport drop → onDisconnect exactly once | `close is idempotent`                                            | —                 |
 
 ## Additional Tests
 
