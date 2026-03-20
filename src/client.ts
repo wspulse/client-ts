@@ -60,6 +60,8 @@ interface WS {
   close(code?: number, reason?: string): void;
   /** Node.js `ws` library: register event listener (ping, pong, etc.). */
   on?(event: string, listener: (...args: unknown[]) => void): void;
+  /** Node.js `ws` library: remove event listener. */
+  removeListener?(event: string, listener: (...args: unknown[]) => void): void;
   /** Node.js `ws` library: send a WebSocket Ping frame. */
   ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
   /** Node.js `ws` library: forcefully destroy the socket without close handshake. */
@@ -144,39 +146,23 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * Connect to a wspulse WebSocket server.
  *
  * The returned Promise resolves once the initial WebSocket handshake completes.
- * If `autoReconnect` is configured and the initial handshake fails, the Promise
- * still resolves with a client in RECONNECTING state — the client will retry
- * using the configured backoff, and `onDisconnect` fires only when all retries
- * are exhausted. Without `autoReconnect`, a failed initial handshake rejects
- * the Promise immediately.
+ * If the initial handshake fails, the Promise rejects immediately — regardless
+ * of `autoReconnect`. No callbacks fire and no Client is created.
+ * `autoReconnect` only kicks in after a successful initial connection.
  *
  * @param url  WebSocket URL (e.g. `wss://host/ws`)
  * @param opts Client options (callbacks, reconnect config, etc.)
- * @returns A {@link Client} in CONNECTED or RECONNECTING state.
+ * @returns A {@link Client} in CONNECTED state.
  *
- * @throws Error if the initial connection attempt fails and `autoReconnect` is
- *         not configured.
+ * @throws Error if the initial connection attempt fails.
  */
 export async function connect(
   url: string,
   opts?: ClientOptions,
 ): Promise<Client> {
   const resolved = resolveOptions(opts);
-  if (!resolved.autoReconnect) {
-    // No reconnect configured: fail fast on initial dial failure.
-    const ws = await dialWebSocket(url, resolved);
-    return new WspulseClient(url, resolved, ws);
-  }
-  try {
-    const ws = await dialWebSocket(url, resolved);
-    return new WspulseClient(url, resolved, ws);
-  } catch (err) {
-    // Initial dial failed — surface the root cause via onTransportDrop so
-    // callers can log/observe it, then enter RECONNECTING state.
-    const cause = err instanceof Error ? err : new Error(String(err));
-    resolved.onTransportDrop(cause);
-    return new WspulseClient(url, resolved, null);
-  }
+  const ws = await dialWebSocket(url, resolved);
+  return new WspulseClient(url, resolved, ws);
 }
 
 /**
@@ -190,7 +176,7 @@ export async function connect(
 class WspulseClient implements Client {
   private readonly url: string;
   private readonly opts: ResolvedOptions;
-  private ws: WS | null;
+  private ws: WS;
 
   /** Bounded send buffer (throws when full). */
   private readonly sendBuffer: (string | Uint8Array)[] = [];
@@ -219,7 +205,13 @@ class WspulseClient implements Client {
   /** Ping interval timer — sends WebSocket Ping frames (Node.js only). */
   private pingTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(url: string, opts: ResolvedOptions, ws: WS | null) {
+  /** Stored pong handler reference for cleanup (prevents listener leak on reconnect). */
+  private pongHandler: (() => void) | null = null;
+
+  /** WebSocket instance the pong handler is attached to (for removeListener). */
+  private pongHandlerWs: WS | null = null;
+
+  constructor(url: string, opts: ResolvedOptions, ws: WS) {
     this.url = url;
     this.opts = opts;
     this.ws = ws;
@@ -233,17 +225,12 @@ class WspulseClient implements Client {
 
     // For binary codecs in browsers, set binaryType so data arrives as
     // ArrayBuffer instead of Blob.
-    if (opts.codec.binaryType === "binary" && ws !== null) {
+    if (opts.codec.binaryType === "binary") {
       (ws as unknown as { binaryType: string }).binaryType = "arraybuffer";
     }
 
-    if (ws !== null) {
-      this.attachListeners(ws);
-      this.startHeartbeat(ws);
-    } else {
-      // Initial dial failed with autoReconnect configured — start retry loop.
-      void this.reconnectLoop();
-    }
+    this.attachListeners(ws);
+    this.startHeartbeat(ws);
   }
 
   /**
@@ -505,9 +492,12 @@ class WspulseClient implements Client {
     };
 
     // Listen for Pong frames to reset the deadline.
-    ws.on("pong", () => {
+    // Store the handler so it can be removed in stopHeartbeat().
+    this.pongHandler = () => {
       resetPongDeadline();
-    });
+    };
+    this.pongHandlerWs = ws;
+    ws.on("pong", this.pongHandler);
 
     // Send an initial Ping immediately so the pong deadline starts from a real
     // ping, not from connection open. This prevents false timeouts when
@@ -525,13 +515,23 @@ class WspulseClient implements Client {
     }, pingPeriod);
   }
 
-  /** Stop heartbeat timers (ping + pong deadline). */
+  /** Stop heartbeat timers (ping + pong deadline) and remove pong listener. */
   private stopHeartbeat(): void {
     this.clearPongDeadline();
     if (this.pingTimer !== null) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
+    // Remove pong listener from the previous WebSocket to prevent leaks.
+    if (
+      this.pongHandler !== null &&
+      this.pongHandlerWs !== null &&
+      typeof this.pongHandlerWs.removeListener === "function"
+    ) {
+      this.pongHandlerWs.removeListener("pong", this.pongHandler);
+    }
+    this.pongHandler = null;
+    this.pongHandlerWs = null;
   }
 
   /** Clear the pong deadline timer only. */
@@ -548,7 +548,7 @@ class WspulseClient implements Client {
    * Stops draining if the socket is not open (reconnect will restart it).
    */
   private flushSendBuffer(): void {
-    if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
+    if (this.ws.readyState !== WS_OPEN) return;
     // splice(0) grabs all frames in O(n) — avoids O(n²) from repeated shift().
     const frames = this.sendBuffer.splice(0);
     for (const encoded of frames) {
@@ -577,7 +577,7 @@ class WspulseClient implements Client {
    * `writeWait` guards only this shutdown-flush path.
    */
   private sendWithTimeout(data: string | Uint8Array, timeoutMs: number): void {
-    if (this.ws === null || this.ws.readyState !== WS_OPEN) return;
+    if (this.ws.readyState !== WS_OPEN) return;
     const ws = this.ws;
 
     // Browsers do not surface write-completion events — send is best-effort.
@@ -642,12 +642,10 @@ class WspulseClient implements Client {
 
     // Close the WebSocket. Suppress errors (may already be closed).
     try {
-      if (this.ws !== null) {
-        this.ws.onmessage = null;
-        this.ws.onclose = null;
-        this.ws.onerror = null;
-        this.ws.close(1000, "");
-      }
+      this.ws.onmessage = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.close(1000, "");
     } catch {
       // Already closed — ignore.
     }

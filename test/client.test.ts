@@ -1,11 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { connect } from "../src/client.js";
-import {
-  ConnectionClosedError,
-  RetriesExhaustedError,
-  SendBufferFullError,
-} from "../src/errors.js";
+import { ConnectionClosedError, SendBufferFullError } from "../src/errors.js";
 import type { Frame } from "../src/frame.js";
 import type { Client } from "../src/client.js";
 
@@ -311,16 +307,12 @@ describe("connect failure", () => {
 });
 
 describe("connect failure with autoReconnect", () => {
-  it("resolves with a reconnecting client when initial dial fails", async () => {
-    let disconnectErr: Error | null | undefined;
-    const client = await connect("ws://127.0.0.1:19999", {
-      autoReconnect: { maxRetries: 1, baseDelay: 5, maxDelay: 5 },
-      onDisconnect: (err) => {
-        disconnectErr = err;
-      },
-    });
-    await client.done;
-    expect(disconnectErr).toBeInstanceOf(RetriesExhaustedError);
+  it("rejects even when autoReconnect is enabled", async () => {
+    await expect(
+      connect("ws://127.0.0.1:19999", {
+        autoReconnect: { maxRetries: 5, baseDelay: 5, maxDelay: 5 },
+      }),
+    ).rejects.toThrow("wspulse: dial failed");
   });
 });
 
