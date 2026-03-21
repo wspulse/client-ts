@@ -314,6 +314,25 @@ describe("connect failure with autoReconnect", () => {
       }),
     ).rejects.toThrow("wspulse: dial failed");
   });
+
+  it("does not fire any callbacks on initial dial failure", async () => {
+    const onTransportDrop = vi.fn();
+    const onDisconnect = vi.fn();
+    const onReconnect = vi.fn();
+
+    await expect(
+      connect("ws://127.0.0.1:19999", {
+        onTransportDrop,
+        onDisconnect,
+        onReconnect,
+        autoReconnect: { maxRetries: 5, baseDelay: 5, maxDelay: 5 },
+      }),
+    ).rejects.toThrow("wspulse: dial failed");
+
+    expect(onTransportDrop).not.toHaveBeenCalled();
+    expect(onDisconnect).not.toHaveBeenCalled();
+    expect(onReconnect).not.toHaveBeenCalled();
+  });
 });
 
 describe("multiple messages", () => {
