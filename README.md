@@ -173,6 +173,18 @@ const client = await connect(url, {
 
 ---
 
+## Logging
+
+The client logs internal diagnostics via `console.warn`. This is enabled by default.
+
+**Disable logging** by overriding `console.warn` before connecting:
+
+```ts
+console.warn = () => {};
+```
+
+---
+
 ## Features
 
 - **Auto-reconnect** — exponential backoff with configurable max retries, base delay, and max delay. Equal jitter formula: delay ∈ `[half, full]` where full = min(base × 2^attempt, max).
