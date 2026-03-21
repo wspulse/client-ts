@@ -1,7 +1,10 @@
 # wspulse/client-ts
 
-[![npm](https://img.shields.io/npm/v/@wspulse/client-ts)](https://www.npmjs.com/package/@wspulse/client-ts)
 [![CI](https://github.com/wspulse/client-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/wspulse/client-ts/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@wspulse/client-ts)](https://www.npmjs.com/package/@wspulse/client-ts)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg?logo=typescript)](https://www.typescriptlang.org)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg?logo=node.js)](https://nodejs.org)
+[![Browser](https://img.shields.io/badge/Browser-supported-green.svg?logo=googlechrome)](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A TypeScript WebSocket client with optional automatic reconnection, designed for use with [wspulse/server](https://github.com/wspulse/server).
