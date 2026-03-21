@@ -4,6 +4,25 @@
 
 ---
 
+## [0.2.1] - 2026-03-21
+
+### Fixed
+
+- `connect()` now rejects immediately on initial dial failure regardless of
+  `autoReconnect` configuration. No callbacks fire and no `Client` is returned.
+  Auto-reconnect only activates after a successful initial connection drops.
+- Fixed pong listener leak across reconnects: handler is now stored and removed
+  in `stopHeartbeat`.
+
+### Added
+
+- Integration tests: pong timeout, concurrent close/transport-drop race,
+  scenario 2/9 coverage, shared testserver support.
+- CI/CD: auto-label on PR opened, tag-triggered GitHub Release, `release.yml`
+  changelog categories.
+
+---
+
 ## [0.2.0] - 2026-03-16
 
 ### Changed
