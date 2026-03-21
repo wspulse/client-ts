@@ -173,6 +173,24 @@ const client = await connect(url, {
 
 ---
 
+## Logging
+
+The client logs warnings via `console.warn` when an inbound frame cannot be decoded by the configured codec. This is always enabled.
+
+**Disable logging** by temporarily overriding `console.warn`:
+
+```ts
+const originalWarn = console.warn;
+console.warn = () => {};
+try {
+  // code that uses @wspulse/client-ts
+} finally {
+  console.warn = originalWarn;
+}
+```
+
+---
+
 ## Features
 
 - **Auto-reconnect** — exponential backoff with configurable max retries, base delay, and max delay. Equal jitter formula: delay ∈ `[half, full]` where full = min(base × 2^attempt, max).
