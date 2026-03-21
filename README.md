@@ -175,12 +175,18 @@ const client = await connect(url, {
 
 ## Logging
 
-The client logs internal diagnostics via `console.warn`. This is enabled by default.
+The client logs warnings via `console.warn` when an inbound frame cannot be decoded by the configured codec. This is always enabled.
 
-**Disable logging** by overriding `console.warn` before connecting:
+**Disable logging** by temporarily overriding `console.warn`:
 
 ```ts
+const originalWarn = console.warn;
 console.warn = () => {};
+try {
+  // code that uses @wspulse/client-ts
+} finally {
+  console.warn = originalWarn;
+}
 ```
 
 ---

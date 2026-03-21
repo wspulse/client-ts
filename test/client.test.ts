@@ -432,6 +432,42 @@ describe("heartbeat (pong timeout)", () => {
   });
 });
 
+describe("decode failure", () => {
+  it("logs warning and continues processing valid frames", async () => {
+    // Server that sends an invalid frame followed by a valid one.
+    const server = new WebSocketServer({ port: 0 });
+    server.on("connection", (ws) => {
+      setTimeout(() => {
+        ws.send("not valid json", { binary: false });
+        ws.send(JSON.stringify({ event: "valid" }), { binary: false });
+      }, 20);
+    });
+    const addr = server.address();
+    if (typeof addr === "string" || addr === null) throw new Error("bad addr");
+
+    const received: Frame[] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
+      onMessage: (frame) => received.push(frame),
+    });
+    testServer = server;
+
+    // Wait for the valid frame to arrive.
+    await vi.waitFor(() => expect(received.length).toBe(1), { timeout: 2000 });
+
+    expect(received[0].event).toBe("valid");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("wspulse/client:"),
+      expect.anything(),
+    );
+
+    warnSpy.mockRestore();
+    testClient.close();
+    await testClient.done;
+  });
+});
+
 describe("concurrent close and transport drop", () => {
   it("fires onDisconnect exactly once", async () => {
     const { server, url } = createEchoServer();
