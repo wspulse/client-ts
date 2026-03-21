@@ -320,8 +320,8 @@ class WspulseClient implements Client {
       try {
         const frame = this.opts.codec.decode(normalized);
         this.opts.onMessage(frame);
-      } catch {
-        // Decode error — drop frame silently (matches Go behaviour).
+      } catch (err) {
+        console.warn("wspulse/client: decode failed, frame dropped", err);
       }
     };
 
