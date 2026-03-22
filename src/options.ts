@@ -10,7 +10,7 @@ import { JSONCodec } from "./codec.js";
  * transport drops, using exponential backoff with equal jitter.
  */
 export interface AutoReconnectOptions {
-  /** Max retry attempts. 0 or negative = unlimited. */
+  /** Max retry attempts. 0 = unlimited. Must be non-negative. */
   maxRetries: number;
   /** Base delay in milliseconds. */
   baseDelay: number;
@@ -109,6 +109,15 @@ const DEFAULT_WRITE_WAIT = 10_000;
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
 
+/** @internal Upper bound constants for config validation. */
+const MAX_PING_PERIOD = 60_000;
+const MAX_PONG_WAIT = 120_000;
+const MAX_WRITE_WAIT = 30_000;
+const MAX_MSG_SIZE_BYTES = 64 << 20;
+const MAX_BASE_DELAY = 60_000;
+const MAX_DELAY_LIMIT = 300_000;
+const MAX_RETRIES_LIMIT = 32;
+
 /**
  * Internal fully-resolved options with all defaults applied.
  *
@@ -132,6 +141,76 @@ export interface ResolvedOptions {
 const noop = () => {};
 
 /**
+ * Validate caller-provided options. Throws on invalid config.
+ *
+ * @internal
+ */
+function validateOptions(opts: ClientOptions): void {
+  if (opts.maxMessageSize !== undefined) {
+    if (opts.maxMessageSize < 0) {
+      throw new Error("wspulse: maxMessageSize must be non-negative");
+    }
+    if (opts.maxMessageSize > MAX_MSG_SIZE_BYTES) {
+      throw new Error("wspulse: maxMessageSize exceeds maximum (64 MiB)");
+    }
+  }
+
+  if (opts.writeWait !== undefined) {
+    if (opts.writeWait <= 0) {
+      throw new Error("wspulse: writeWait must be positive");
+    }
+    if (opts.writeWait > MAX_WRITE_WAIT) {
+      throw new Error("wspulse: writeWait exceeds maximum (30s)");
+    }
+  }
+
+  if (opts.heartbeat !== undefined) {
+    const hb = opts.heartbeat;
+    if (hb.pingPeriod <= 0) {
+      throw new Error("wspulse: heartbeat.pingPeriod must be positive");
+    }
+    if (hb.pingPeriod > MAX_PING_PERIOD) {
+      throw new Error("wspulse: heartbeat.pingPeriod exceeds maximum (1m)");
+    }
+    if (hb.pongWait <= 0) {
+      throw new Error("wspulse: heartbeat.pongWait must be positive");
+    }
+    if (hb.pongWait > MAX_PONG_WAIT) {
+      throw new Error("wspulse: heartbeat.pongWait exceeds maximum (2m)");
+    }
+    if (hb.pingPeriod >= hb.pongWait) {
+      throw new Error(
+        "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
+      );
+    }
+  }
+
+  if (opts.autoReconnect !== undefined) {
+    const rc = opts.autoReconnect;
+    if (rc.maxRetries < 0) {
+      throw new Error("wspulse: autoReconnect.maxRetries must be non-negative");
+    }
+    if (rc.baseDelay <= 0) {
+      throw new Error("wspulse: autoReconnect.baseDelay must be positive");
+    }
+    if (rc.baseDelay > MAX_BASE_DELAY) {
+      throw new Error("wspulse: autoReconnect.baseDelay exceeds maximum (1m)");
+    }
+    if (rc.maxDelay < rc.baseDelay) {
+      throw new Error(
+        "wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay",
+      );
+    }
+    if (rc.maxDelay > MAX_DELAY_LIMIT) {
+      throw new Error("wspulse: autoReconnect.maxDelay exceeds maximum (5m)");
+    }
+    if (rc.maxRetries > 0 && rc.maxRetries > MAX_RETRIES_LIMIT) {
+      throw new Error("wspulse: autoReconnect.maxRetries exceeds maximum (32)");
+    }
+  }
+}
+
+/**
  * Merge caller-provided options with defaults.
  *
  * Missing callbacks are replaced with no-ops. Missing scalar values
@@ -141,6 +220,9 @@ const noop = () => {};
  * @returns Fully resolved options, safe to use without null checks.
  */
 export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
+  if (opts) {
+    validateOptions(opts);
+  }
   return {
     onMessage: opts?.onMessage ?? noop,
     onDisconnect: opts?.onDisconnect ?? noop,
