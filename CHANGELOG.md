@@ -4,6 +4,23 @@
 
 ---
 
+## [0.3.0] - 2026-03-22
+
+### Changed
+
+- **BREAKING**: negative `maxRetries` now throws instead of being treated as
+  unlimited. Use `0` for unlimited retries.
+- Validation error messages use fully-qualified field names (`heartbeat.pongWait`,
+  `autoReconnect.baseDelay`) to match the config validation contract.
+
+### Added
+
+- Config validation in `resolveOptions()`: all 15 rules from the config
+  validation contract are now enforced at construction time.
+- Test coverage for error classes and callback invocations.
+
+---
+
 ## [0.2.2] - 2026-03-21
 
 ### Fixed
