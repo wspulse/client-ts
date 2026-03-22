@@ -197,7 +197,9 @@ function validateOptions(opts: ClientOptions): void {
       throw new Error("wspulse: autoReconnect.baseDelay exceeds maximum (1m)");
     }
     if (rc.maxDelay < rc.baseDelay) {
-      throw new Error("wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay");
+      throw new Error(
+        "wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay",
+      );
     }
     if (rc.maxDelay > MAX_MAX_DELAY) {
       throw new Error("wspulse: autoReconnect.maxDelay exceeds maximum (5m)");

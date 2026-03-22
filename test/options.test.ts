@@ -212,7 +212,9 @@ describe("resolveOptions validation", () => {
       resolveOptions({
         autoReconnect: { maxRetries: 3, baseDelay: 5000, maxDelay: 1000 },
       }),
-    ).toThrow("wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay");
+    ).toThrow(
+      "wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay",
+    );
   });
 
   it("throws when maxDelay exceeds 5m", () => {
@@ -229,7 +231,7 @@ describe("resolveOptions validation", () => {
       resolveOptions({
         maxMessageSize: 64 << 20,
         writeWait: 30_000,
-        heartbeat: { pingPeriod: 59_000, pongWait: 120_000 },
+        heartbeat: { pingPeriod: 60_000, pongWait: 120_000 },
         autoReconnect: {
           maxRetries: 32,
           baseDelay: 60_000,
