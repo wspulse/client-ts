@@ -212,7 +212,7 @@ describe("resolveOptions validation", () => {
       resolveOptions({
         autoReconnect: { maxRetries: 3, baseDelay: 5000, maxDelay: 1000 },
       }),
-    ).toThrow("wspulse: autoReconnect.maxDelay must be >= baseDelay");
+    ).toThrow("wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay");
   });
 
   it("throws when maxDelay exceeds 5m", () => {
