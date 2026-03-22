@@ -6,6 +6,7 @@ import {
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
+  SendBufferFullError,
 } from "../src/index.js";
 
 describe("index re-exports", () => {
@@ -29,6 +30,11 @@ describe("index re-exports", () => {
 
   it("exports ConnectionLostError", () => {
     const err = new ConnectionLostError();
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("exports SendBufferFullError", () => {
+    const err = new SendBufferFullError();
     expect(err).toBeInstanceOf(Error);
   });
 

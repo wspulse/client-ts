@@ -3,6 +3,7 @@ import {
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
+  SendBufferFullError,
 } from "../src/errors.js";
 
 describe("error classes", () => {
@@ -28,5 +29,13 @@ describe("error classes", () => {
     expect(err).toBeInstanceOf(ConnectionLostError);
     expect(err.name).toBe("ConnectionLostError");
     expect(err.message).toContain("lost");
+  });
+
+  it("SendBufferFullError has correct name and message", () => {
+    const err = new SendBufferFullError();
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(SendBufferFullError);
+    expect(err.name).toBe("SendBufferFullError");
+    expect(err.message).toContain("buffer");
   });
 });
