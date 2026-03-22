@@ -509,6 +509,9 @@ describe("dialHeaders", () => {
         ws.send(isBinary ? data : data.toString(), { binary: false });
       });
     });
+    await new Promise<void>((resolve) => {
+      server.once("listening", () => resolve());
+    });
     const addr = server.address();
     if (typeof addr === "string" || addr === null) throw new Error("bad addr");
     testServer = server;
