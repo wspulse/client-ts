@@ -231,19 +231,3 @@ make build     # tsup → dist/ (ESM + CJS)
 | --------------------------------------------------------- | ------------------------------------ |
 | [wspulse/server](https://github.com/wspulse/server)       | WebSocket server                     |
 | [wspulse/client-go](https://github.com/wspulse/client-go) | Go client (reference implementation) |
-
----
-
-## Contract & Protocol
-
-| Document                  | Description                                                |
-| ------------------------- | ---------------------------------------------------------- |
-| [Wire Protocol][proto]    | Frame format, heartbeat, session resumption                |
-| [Client Interface][c-if]  | API surface contract (connect, send, close, options)       |
-| [Client Behaviour][c-bh]  | Lifecycle, callbacks, reconnect, backpressure              |
-| [Client Tests][c-ts]      | Shared integration test scenarios                          |
-
-[proto]: https://github.com/wspulse/.github/blob/main/doc/protocol.md
-[c-if]: https://github.com/wspulse/.github/blob/main/doc/contracts/client/interface.md
-[c-bh]: https://github.com/wspulse/.github/blob/main/doc/contracts/client/behaviour.md
-[c-ts]: https://github.com/wspulse/.github/blob/main/doc/contracts/client/integration-test-scenarios.md
