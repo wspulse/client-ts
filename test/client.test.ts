@@ -494,3 +494,65 @@ describe("concurrent close and transport drop", () => {
     expect(disconnectCount).toBe(1);
   });
 });
+
+describe("dialHeaders", () => {
+  it("sends custom headers during handshake", async () => {
+    let receivedHeaders: Record<string, string> = {};
+    const server = new WebSocketServer({ port: 0 });
+    server.on("headers", (_headers, req) => {
+      receivedHeaders = Object.fromEntries(
+        Object.entries(req.headers).map(([k, v]) => [k, String(v)]),
+      );
+    });
+    server.on("connection", (ws) => {
+      ws.on("message", (data, isBinary) => {
+        ws.send(isBinary ? data : data.toString(), { binary: false });
+      });
+    });
+    const addr = server.address();
+    if (typeof addr === "string" || addr === null) throw new Error("bad addr");
+    testServer = server;
+
+    testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
+      dialHeaders: { "X-Custom-Token": "test-value-123" },
+    });
+
+    expect(receivedHeaders["x-custom-token"]).toBe("test-value-123");
+
+    testClient.close();
+    await testClient.done;
+  });
+});
+
+describe("onMessage must not fire after onDisconnect", () => {
+  it("drops messages that arrive during shutdown", async () => {
+    const { server, url } = createEchoServer();
+    testServer = server;
+
+    const callOrder: string[] = [];
+    let disconnectFired = false;
+
+    testClient = await connect(url, {
+      onMessage: () => {
+        callOrder.push("message");
+        if (disconnectFired) {
+          throw new Error("onMessage fired after onDisconnect");
+        }
+      },
+      onDisconnect: () => {
+        disconnectFired = true;
+        callOrder.push("disconnect");
+      },
+    });
+
+    // Send some data then close — after close, no onMessage should fire.
+    testClient.send({ event: "msg" });
+    await vi.waitFor(() => expect(callOrder).toContain("message"));
+
+    testClient.close();
+    await testClient.done;
+
+    // Verify onDisconnect is the last callback that fired.
+    expect(callOrder[callOrder.length - 1]).toBe("disconnect");
+  });
+});
