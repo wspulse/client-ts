@@ -180,7 +180,7 @@ function validateOptions(opts: ClientOptions): void {
     }
     if (hb.pingPeriod >= hb.pongWait) {
       throw new Error(
-        "wspulse: heartbeat.pingPeriod must be strictly less than pongWait",
+        "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
       );
     }
   }

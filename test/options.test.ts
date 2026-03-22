@@ -152,7 +152,7 @@ describe("resolveOptions validation", () => {
     expect(() =>
       resolveOptions({ heartbeat: { pingPeriod: 30_000, pongWait: 30_000 } }),
     ).toThrow(
-      "wspulse: heartbeat.pingPeriod must be strictly less than pongWait",
+      "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
     );
   });
 
@@ -160,7 +160,7 @@ describe("resolveOptions validation", () => {
     expect(() =>
       resolveOptions({ heartbeat: { pingPeriod: 60_000, pongWait: 20_000 } }),
     ).toThrow(
-      "wspulse: heartbeat.pingPeriod must be strictly less than pongWait",
+      "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
     );
   });
 
