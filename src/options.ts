@@ -115,8 +115,8 @@ const MAX_PONG_WAIT = 120_000;
 const MAX_WRITE_WAIT = 30_000;
 const MAX_MSG_SIZE_BYTES = 64 << 20;
 const MAX_BASE_DELAY = 60_000;
-const MAX_MAX_DELAY = 300_000;
-const MAX_MAX_RETRIES = 32;
+const MAX_DELAY_LIMIT = 300_000;
+const MAX_RETRIES_LIMIT = 32;
 
 /**
  * Internal fully-resolved options with all defaults applied.
@@ -201,10 +201,10 @@ function validateOptions(opts: ClientOptions): void {
         "wspulse: autoReconnect.maxDelay must be >= autoReconnect.baseDelay",
       );
     }
-    if (rc.maxDelay > MAX_MAX_DELAY) {
+    if (rc.maxDelay > MAX_DELAY_LIMIT) {
       throw new Error("wspulse: autoReconnect.maxDelay exceeds maximum (5m)");
     }
-    if (rc.maxRetries > 0 && rc.maxRetries > MAX_MAX_RETRIES) {
+    if (rc.maxRetries > 0 && rc.maxRetries > MAX_RETRIES_LIMIT) {
       throw new Error("wspulse: autoReconnect.maxRetries exceeds maximum (32)");
     }
   }
