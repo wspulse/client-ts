@@ -404,8 +404,7 @@ class WspulseClient implements Client {
       // Swap connection and restart listeners + drain + heartbeat.
       this.ws = newWs;
       if (this.opts.codec.binaryType === "binary") {
-        (newWs as unknown as { binaryType: string }).binaryType =
-          "arraybuffer";
+        (newWs as unknown as { binaryType: string }).binaryType = "arraybuffer";
       }
       this.attachListeners(newWs);
       this.startDrain();
