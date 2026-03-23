@@ -445,9 +445,12 @@ describe("integration: wspulse/server", () => {
         disconnectResolve();
       },
       onTransportDrop() {
-        // Close while the reconnect loop is active — transport drop means
-        // the reconnect loop has started.
-        testClient?.close();
+        // Close while the reconnect loop is active. Use queueMicrotask so
+        // the reconnect loop has a chance to start before close() is called
+        // (onTransportDrop fires before the loop begins).
+        queueMicrotask(() => {
+          testClient?.close();
+        });
       },
       autoReconnect: { maxRetries: 10, baseDelay: 100, maxDelay: 500 },
     });
