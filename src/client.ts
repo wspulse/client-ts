@@ -385,33 +385,39 @@ class WspulseClient implements Client {
       const aborted = await this.abortableDelay(delay, signal);
       if (aborted || this.closed) return;
 
-      // Fire onReconnect before the dial attempt.
-      this.opts.onReconnect(attempt);
-
       // Attempt to dial.
+      let newWs: WS;
       try {
-        const newWs = await dialWebSocket(this.url, this.opts);
-
-        // Check if close() was called during the dial.
-        if (this.closed) {
-          newWs.close();
-          return;
-        }
-
-        // Swap connection and restart listeners + drain + heartbeat.
-        this.ws = newWs;
-        if (this.opts.codec.binaryType === "binary") {
-          (newWs as unknown as { binaryType: string }).binaryType =
-            "arraybuffer";
-        }
-        this.attachListeners(newWs);
-        this.startDrain();
-        this.startHeartbeat(newWs);
-        return; // Successfully reconnected.
+        newWs = await dialWebSocket(this.url, this.opts);
       } catch {
         // Dial failed — increment attempt and retry.
         attempt++;
+        continue;
       }
+
+      // Check if close() was called during the dial.
+      if (this.closed) {
+        newWs.close();
+        return;
+      }
+
+      // Swap connection and restart listeners + drain + heartbeat.
+      this.ws = newWs;
+      if (this.opts.codec.binaryType === "binary") {
+        (newWs as unknown as { binaryType: string }).binaryType = "arraybuffer";
+      }
+      this.attachListeners(newWs);
+      this.startDrain();
+      this.startHeartbeat(newWs);
+
+      // Fire onTransportRestore outside the dial try/catch so a throwing
+      // callback does not get misinterpreted as a dial failure.
+      try {
+        this.opts.onTransportRestore();
+      } catch (err) {
+        console.warn("wspulse/client: onTransportRestore threw", err);
+      }
+      return; // Successfully reconnected.
     }
   }
 

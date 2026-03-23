@@ -349,19 +349,19 @@ describe("integration: wspulse/server", () => {
   it("reconnects after kick and resumes echo (scenario 3)", async () => {
     const connectionId = "reconnect-test-ts";
     const received: Frame[] = [];
-    const reconnectAttempts: number[] = [];
-    let reconnectedResolve: () => void = () => {};
-    const reconnected = new Promise<void>((r) => {
-      reconnectedResolve = r;
+    let transportRestoreCount = 0;
+    let restoredResolve: () => void = () => {};
+    const restored = new Promise<void>((r) => {
+      restoredResolve = r;
     });
 
     testClient = await connect(serverUrl() + `?id=${connectionId}`, {
       onMessage(frame) {
         received.push(frame);
       },
-      onReconnect(attempt) {
-        reconnectAttempts.push(attempt);
-        reconnectedResolve();
+      onTransportRestore() {
+        transportRestoreCount++;
+        restoredResolve();
       },
       autoReconnect: { maxRetries: 5, baseDelay: 100, maxDelay: 500 },
     });
@@ -380,11 +380,8 @@ describe("integration: wspulse/server", () => {
     });
     expect(res.ok).toBe(true);
 
-    // Wait for at least one reconnect attempt.
-    await reconnected;
-
-    // Wait a bit for the new connection to be fully established.
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait for transport restore after successful reconnect.
+    await restored;
 
     // Send after reconnect — echo should still work.
     const client = testClient;
@@ -396,7 +393,7 @@ describe("integration: wspulse/server", () => {
       { timeout: 5000 },
     );
 
-    expect(reconnectAttempts.length).toBeGreaterThanOrEqual(1);
+    expect(transportRestoreCount).toBeGreaterThanOrEqual(1);
   });
 
   it("fires RetriesExhaustedError after shutdown (scenario 4)", async () => {
@@ -447,9 +444,13 @@ describe("integration: wspulse/server", () => {
         disconnectErr = err;
         disconnectResolve();
       },
-      onReconnect() {
-        // Close while the reconnect loop is active — guarantees loop is running.
-        testClient?.close();
+      onTransportDrop() {
+        // Close while the reconnect loop is active. Use queueMicrotask so
+        // the reconnect loop has a chance to start before close() is called
+        // (onTransportDrop fires before the loop begins).
+        queueMicrotask(() => {
+          testClient?.close();
+        });
       },
       autoReconnect: { maxRetries: 10, baseDelay: 100, maxDelay: 500 },
     });

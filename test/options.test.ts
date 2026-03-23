@@ -36,20 +36,20 @@ describe("resolveOptions", () => {
     expect(() => opts.onMessage(frame)).not.toThrow();
     expect(() => opts.onDisconnect(null)).not.toThrow();
     expect(() => opts.onDisconnect(new Error("err"))).not.toThrow();
-    expect(() => opts.onReconnect(0)).not.toThrow();
+    expect(() => opts.onTransportRestore()).not.toThrow();
     expect(() => opts.onTransportDrop(new Error("drop"))).not.toThrow();
   });
 
   it("uses user-provided callbacks", () => {
     const onMessage = vi.fn();
     const onDisconnect = vi.fn();
-    const onReconnect = vi.fn();
+    const onTransportRestore = vi.fn();
     const onTransportDrop = vi.fn();
 
     const opts = resolveOptions({
       onMessage,
       onDisconnect,
-      onReconnect,
+      onTransportRestore,
       onTransportDrop,
     });
 
@@ -60,8 +60,8 @@ describe("resolveOptions", () => {
     opts.onDisconnect(null);
     expect(onDisconnect).toHaveBeenCalledWith(null);
 
-    opts.onReconnect(2);
-    expect(onReconnect).toHaveBeenCalledWith(2);
+    opts.onTransportRestore();
+    expect(onTransportRestore).toHaveBeenCalled();
 
     const err = new Error("transport drop");
     opts.onTransportDrop(err);
