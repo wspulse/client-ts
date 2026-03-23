@@ -601,6 +601,68 @@ describe("onTransportRestore", () => {
     await testClient.done;
   });
 
+  it("throwing callback does not leak connection or trigger retry", async () => {
+    const { server, url } = createEchoServer();
+    testServer = server;
+    const port = new URL(url).port;
+
+    const received: Frame[] = [];
+    let transportDropCount = 0;
+    let transportRestoreCount = 0;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    let restoreResolve: () => void = () => {};
+    const restored = new Promise<void>((r) => {
+      restoreResolve = r;
+    });
+
+    testClient = await connect(url, {
+      onMessage: (frame) => received.push(frame),
+      onTransportDrop: () => {
+        transportDropCount++;
+      },
+      onTransportRestore: () => {
+        transportRestoreCount++;
+        restoreResolve();
+        throw new Error("callback blew up");
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 50, maxDelay: 200 },
+    });
+
+    // Terminate all connections then restart on same port.
+    for (const ws of server.clients) ws.terminate();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+
+    const newServer = new WebSocketServer({ port: Number(port) });
+    newServer.on("connection", (ws) => {
+      ws.on("message", (data, isBinary) =>
+        ws.send(isBinary ? data : data.toString(), { binary: false }),
+      );
+    });
+    testServer = newServer;
+
+    await restored;
+
+    // Brief wait to let any erroneous retry attempt fire.
+    await new Promise((r) => setTimeout(r, 500));
+
+    // (a) Connection is still usable — send/receive works.
+    const client = testClient;
+    if (!client) throw new Error("client not connected");
+    client.send({ event: "after-throw", payload: "ok" });
+    await vi.waitFor(() =>
+      expect(received.some((f) => f.event === "after-throw")).toBe(true),
+    );
+
+    // (b) No retry was triggered — only one drop and one restore.
+    expect(transportDropCount).toBe(1);
+    expect(transportRestoreCount).toBe(1);
+
+    warnSpy.mockRestore();
+    testClient.close();
+    await testClient.done;
+  });
+
   it("does not fire on initial connect", async () => {
     const { server, url } = createEchoServer();
     testServer = server;
