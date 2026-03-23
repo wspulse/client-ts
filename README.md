@@ -162,7 +162,7 @@ const client = await connect(url, {
 | ----------------- | ------------------------------------- | ----------------- |
 | `onMessage`       | `(frame: Frame) => void`              | no-op             |
 | `onDisconnect`    | `(err: Error \| null) => void`        | no-op             |
-| `onReconnect`     | `(attempt: number) => void`           | no-op             |
+| `onTransportRestore` | `() => void`                       | no-op             |
 | `onTransportDrop` | `(err: Error) => void`                | no-op             |
 | `autoReconnect`   | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
 | `codec`           | `Codec`                               | `JSONCodec`       |

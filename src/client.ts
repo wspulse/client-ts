@@ -385,9 +385,6 @@ class WspulseClient implements Client {
       const aborted = await this.abortableDelay(delay, signal);
       if (aborted || this.closed) return;
 
-      // Fire onReconnect before the dial attempt.
-      this.opts.onReconnect(attempt);
-
       // Attempt to dial.
       try {
         const newWs = await dialWebSocket(this.url, this.opts);
@@ -407,6 +404,7 @@ class WspulseClient implements Client {
         this.attachListeners(newWs);
         this.startDrain();
         this.startHeartbeat(newWs);
+        this.opts.onTransportRestore();
         return; // Successfully reconnected.
       } catch {
         // Dial failed — increment attempt and retry.

@@ -60,10 +60,10 @@ export interface ClientOptions {
   onDisconnect?: (err: Error | null) => void;
 
   /**
-   * Called at the start of each reconnect attempt (before the dial).
-   * @param attempt 0-based attempt number (first retry = 0).
+   * Called after a successful reconnect when the new transport is ready
+   * and pumps are running. Does not fire on the initial connection.
    */
-  onReconnect?: (attempt: number) => void;
+  onTransportRestore?: () => void;
 
   /**
    * Called each time the underlying WebSocket connection drops unexpectedly,
@@ -127,7 +127,7 @@ const MAX_RETRIES_LIMIT = 32;
 export interface ResolvedOptions {
   onMessage: (frame: Frame) => void;
   onDisconnect: (err: Error | null) => void;
-  onReconnect: (attempt: number) => void;
+  onTransportRestore: () => void;
   onTransportDrop: (err: Error) => void;
   codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
@@ -226,7 +226,7 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
   return {
     onMessage: opts?.onMessage ?? noop,
     onDisconnect: opts?.onDisconnect ?? noop,
-    onReconnect: opts?.onReconnect ?? noop,
+    onTransportRestore: opts?.onTransportRestore ?? noop,
     onTransportDrop: opts?.onTransportDrop ?? noop,
     codec: opts?.codec ?? JSONCodec,
     autoReconnect: opts?.autoReconnect,

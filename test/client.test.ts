@@ -160,12 +160,14 @@ describe("auto-reconnect", () => {
     const port = new URL(url).port;
 
     const received: Frame[] = [];
-    const reconnectAttempts: number[] = [];
     let transportDropCount = 0;
+    let transportRestoreCount = 0;
 
     testClient = await connect(url, {
       onMessage: (frame) => received.push(frame),
-      onReconnect: (attempt) => reconnectAttempts.push(attempt),
+      onTransportRestore: () => {
+        transportRestoreCount++;
+      },
       onTransportDrop: () => {
         transportDropCount++;
       },
@@ -191,7 +193,7 @@ describe("auto-reconnect", () => {
     // Wait for reconnection.
     await vi.waitFor(() => {
       expect(transportDropCount).toBeGreaterThanOrEqual(1);
-      expect(reconnectAttempts.length).toBeGreaterThanOrEqual(1);
+      expect(transportRestoreCount).toBeGreaterThanOrEqual(1);
     });
 
     // Send a message after reconnect.
@@ -318,20 +320,20 @@ describe("connect failure with autoReconnect", () => {
   it("does not fire any callbacks on initial dial failure", async () => {
     const onTransportDrop = vi.fn();
     const onDisconnect = vi.fn();
-    const onReconnect = vi.fn();
+    const onTransportRestore = vi.fn();
 
     await expect(
       connect("ws://127.0.0.1:19999", {
         onTransportDrop,
         onDisconnect,
-        onReconnect,
+        onTransportRestore,
         autoReconnect: { maxRetries: 5, baseDelay: 5, maxDelay: 5 },
       }),
     ).rejects.toThrow("wspulse: dial failed");
 
     expect(onTransportDrop).not.toHaveBeenCalled();
     expect(onDisconnect).not.toHaveBeenCalled();
-    expect(onReconnect).not.toHaveBeenCalled();
+    expect(onTransportRestore).not.toHaveBeenCalled();
   });
 });
 
@@ -557,5 +559,65 @@ describe("onMessage must not fire after onDisconnect", () => {
 
     // Verify onDisconnect is the last callback that fired.
     expect(callOrder[callOrder.length - 1]).toBe("disconnect");
+  });
+});
+
+describe("onTransportRestore", () => {
+  it("fires after successful reconnect", async () => {
+    const { server, url } = createEchoServer();
+    testServer = server;
+    const port = new URL(url).port;
+
+    let transportRestoreCount = 0;
+    let transportRestoreResolve: () => void = () => {};
+    const transportRestored = new Promise<void>((r) => {
+      transportRestoreResolve = r;
+    });
+
+    testClient = await connect(url, {
+      onTransportRestore: () => {
+        transportRestoreCount++;
+        transportRestoreResolve();
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 50, maxDelay: 200 },
+    });
+
+    // Terminate all connections then restart on same port.
+    for (const ws of server.clients) ws.terminate();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+
+    const newServer = new WebSocketServer({ port: Number(port) });
+    newServer.on("connection", (ws) => {
+      ws.on("message", (data, isBinary) =>
+        ws.send(isBinary ? data : data.toString(), { binary: false }),
+      );
+    });
+    testServer = newServer;
+
+    await transportRestored;
+    expect(transportRestoreCount).toBe(1);
+
+    testClient.close();
+    await testClient.done;
+  });
+
+  it("does not fire on initial connect", async () => {
+    const { server, url } = createEchoServer();
+    testServer = server;
+
+    const onTransportRestore = vi.fn();
+
+    testClient = await connect(url, {
+      onTransportRestore,
+      autoReconnect: { maxRetries: 5, baseDelay: 50, maxDelay: 200 },
+    });
+
+    // Give a brief window for any erroneous call.
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onTransportRestore).not.toHaveBeenCalled();
+
+    testClient.close();
+    await testClient.done;
   });
 });
