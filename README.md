@@ -158,18 +158,18 @@ const client = await connect(url, {
 
 ### Client Options
 
-| Option            | Type                                  | Default           |
-| ----------------- | ------------------------------------- | ----------------- |
-| `onMessage`       | `(frame: Frame) => void`              | no-op             |
-| `onDisconnect`    | `(err: Error \| null) => void`        | no-op             |
-| `onTransportRestore` | `() => void`                       | no-op             |
-| `onTransportDrop` | `(err: Error) => void`                | no-op             |
-| `autoReconnect`   | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
-| `codec`           | `Codec`                               | `JSONCodec`       |
-| `heartbeat`       | `{ pingPeriod, pongWait }` (ms)       | 20 000 / 60 000   |
-| `writeWait`       | `number` (ms)                         | 10 000            |
-| `maxMessageSize`  | `number` (bytes)                      | 1 MiB (1 048 576) |
-| `dialHeaders`     | `Record<string, string>`              | `{}`              |
+| Option               | Type                                  | Default           |
+| -------------------- | ------------------------------------- | ----------------- |
+| `onMessage`          | `(frame: Frame) => void`              | no-op             |
+| `onDisconnect`       | `(err: Error \| null) => void`        | no-op             |
+| `onTransportRestore` | `() => void`                          | no-op             |
+| `onTransportDrop`    | `(err: Error) => void`                | no-op             |
+| `autoReconnect`      | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
+| `codec`              | `Codec`                               | `JSONCodec`       |
+| `heartbeat`          | `{ pingPeriod, pongWait }` (ms)       | 20 000 / 60 000   |
+| `writeWait`          | `number` (ms)                         | 10 000            |
+| `maxMessageSize`     | `number` (bytes)                      | 1 MiB (1 048 576) |
+| `dialHeaders`        | `Record<string, string>`              | `{}`              |
 
 ---
 
@@ -195,6 +195,7 @@ try {
 
 - **Auto-reconnect** — exponential backoff with configurable max retries, base delay, and max delay. Equal jitter formula: delay ∈ `[half, full]` where full = min(base × 2^attempt, max).
 - **Transport drop callback** — `onTransportDrop` fires on every transport death, even when auto-reconnect follows. Useful for metrics and logging.
+- **Transport restore callback** — `onTransportRestore` fires after a successful reconnect (not on the initial connect). Useful for re-subscribing or refreshing state.
 - **Permanent disconnect callback** — `onDisconnect` fires exactly once when the client is truly done (`close()` called, retries exhausted, or connection lost without auto-reconnect).
 - **Heartbeat** — Client-side Ping/Pong keeps the connection alive and detects silently-dead servers. Node.js only (browsers handle Ping/Pong automatically at the protocol level).
 - **Max message size** — Inbound messages exceeding `maxMessageSize` are rejected with close code 1009.
