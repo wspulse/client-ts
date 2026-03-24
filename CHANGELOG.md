@@ -1,6 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-03-24
+
+### Added
+
+- `onTransportRestore` callback option, fired after a successful reconnect
+
+### Removed
+
+- `onReconnect` callback option (replaced by `onTransportRestore`) (**breaking**)
 
 ---
 
