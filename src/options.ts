@@ -95,6 +95,14 @@ export interface ClientOptions {
    * This option is silently ignored in browser environments.
    */
   dialHeaders?: Record<string, string>;
+
+  /**
+   * Maximum number of outbound frames that can be buffered before
+   * {@link Client.send} throws {@link SendBufferFullError}.
+   *
+   * Must be between 1 and 4096 inclusive. Default: 256.
+   */
+  sendBufferSize?: number;
 }
 
 /** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
@@ -108,6 +116,12 @@ const DEFAULT_WRITE_WAIT = 10_000;
 
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
+
+/** @internal Default send buffer capacity: 256 frames. */
+const DEFAULT_SEND_BUFFER_SIZE = 256;
+
+/** @internal Upper bound for send buffer size. */
+const MAX_SEND_BUFFER_SIZE = 4096;
 
 /** @internal Upper bound constants for config validation. */
 const MAX_PING_PERIOD = 60_000;
@@ -135,6 +149,7 @@ export interface ResolvedOptions {
   writeWait: number;
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
+  sendBufferSize: number;
 }
 
 /** @internal Shared no-op callback for all unset option callbacks. */
@@ -181,6 +196,23 @@ function validateOptions(opts: ClientOptions): void {
     if (hb.pingPeriod >= hb.pongWait) {
       throw new Error(
         "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
+      );
+    }
+  }
+
+  if (opts.sendBufferSize !== undefined) {
+    if (
+      !Number.isFinite(opts.sendBufferSize) ||
+      !Number.isInteger(opts.sendBufferSize)
+    ) {
+      throw new Error("wspulse: sendBufferSize must be a finite integer");
+    }
+    if (opts.sendBufferSize < 1) {
+      throw new Error("wspulse: sendBufferSize must be at least 1");
+    }
+    if (opts.sendBufferSize > MAX_SEND_BUFFER_SIZE) {
+      throw new Error(
+        `wspulse: sendBufferSize exceeds maximum (${MAX_SEND_BUFFER_SIZE})`,
       );
     }
   }
@@ -234,5 +266,6 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
+    sendBufferSize: opts?.sendBufferSize ?? DEFAULT_SEND_BUFFER_SIZE,
   };
 }

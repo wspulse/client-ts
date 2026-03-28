@@ -39,9 +39,6 @@ export interface Client {
   readonly done: Promise<void>;
 }
 
-/** Internal send buffer capacity. Matches client-go (256). */
-const SEND_BUFFER_SIZE = 256;
-
 // ── WebSocket abstraction ─────────────────────────────────────────────────────
 
 /**
@@ -244,7 +241,7 @@ class WspulseClient implements Client {
       throw new ConnectionClosedError();
     }
     const data = this.opts.codec.encode(frame);
-    if (this.sendBuffer.length >= SEND_BUFFER_SIZE) {
+    if (this.sendBuffer.length >= this.opts.sendBufferSize) {
       throw new SendBufferFullError();
     }
     this.sendBuffer.push(data);

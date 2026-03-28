@@ -13,6 +13,7 @@ describe("resolveOptions", () => {
     expect(opts.autoReconnect).toBeUndefined();
     expect(opts.dialHeaders).toEqual({});
     expect(opts.codec).toBe(JSONCodec);
+    expect(opts.sendBufferSize).toBe(256);
   });
 
   it("preserves user-provided values", () => {
@@ -225,6 +226,54 @@ describe("resolveOptions validation", () => {
     ).toThrow("wspulse: autoReconnect.maxDelay exceeds maximum (5m)");
   });
 
+  // sendBufferSize
+  it("accepts valid sendBufferSize values", () => {
+    expect(() => resolveOptions({ sendBufferSize: 1 })).not.toThrow();
+    expect(() => resolveOptions({ sendBufferSize: 128 })).not.toThrow();
+    expect(() => resolveOptions({ sendBufferSize: 4096 })).not.toThrow();
+  });
+
+  it("preserves custom sendBufferSize", () => {
+    const opts = resolveOptions({ sendBufferSize: 512 });
+    expect(opts.sendBufferSize).toBe(512);
+  });
+
+  it("throws on zero sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: 0 })).toThrow(
+      "wspulse: sendBufferSize must be at least 1",
+    );
+  });
+
+  it("throws on negative sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: -1 })).toThrow(
+      "wspulse: sendBufferSize must be at least 1",
+    );
+  });
+
+  it("throws when sendBufferSize exceeds 4096", () => {
+    expect(() => resolveOptions({ sendBufferSize: 4097 })).toThrow(
+      "wspulse: sendBufferSize exceeds maximum (4096)",
+    );
+  });
+
+  it("throws on NaN sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: NaN })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
+  it("throws on Infinity sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: Infinity })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
+  it("throws on non-integer sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: 1.5 })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
   // valid boundary (should NOT throw)
   it("accepts max boundary values", () => {
     expect(() =>
@@ -237,6 +286,7 @@ describe("resolveOptions validation", () => {
           baseDelay: 60_000,
           maxDelay: 300_000,
         },
+        sendBufferSize: 4096,
       }),
     ).not.toThrow();
   });
