@@ -15,7 +15,7 @@ on:
       - '.github/instructions/**'
 
 jobs:
-  check:
+  lint-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -51,8 +51,8 @@ jobs:
   test-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [check]
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'develop'))
+    needs: [lint-test]
     strategy:
       matrix:
         node-version: [20, 22]
@@ -103,3 +103,19 @@ jobs:
       - name: Run integration tests
         working-directory: client-ts
         run: npx vitest run -c vitest.integration.config.ts
+
+  check:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint-test, test-integration]
+    steps:
+      - name: Verify all checks passed
+        run: |
+          if [[ "${{ needs.lint-test.result }}" != "success" ]]; then
+            echo "lint-test failed"
+            exit 1
+          fi
+          if [[ "${{ needs.test-integration.result }}" != "success" && "${{ needs.test-integration.result }}" != "skipped" ]]; then
+            echo "test-integration failed"
+            exit 1
+          fi
