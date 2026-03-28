@@ -201,11 +201,19 @@ function validateOptions(opts: ClientOptions): void {
   }
 
   if (opts.sendBufferSize !== undefined) {
+    if (
+      !Number.isFinite(opts.sendBufferSize) ||
+      !Number.isInteger(opts.sendBufferSize)
+    ) {
+      throw new Error("wspulse: sendBufferSize must be a finite integer");
+    }
     if (opts.sendBufferSize < 1) {
       throw new Error("wspulse: sendBufferSize must be at least 1");
     }
     if (opts.sendBufferSize > MAX_SEND_BUFFER_SIZE) {
-      throw new Error("wspulse: sendBufferSize exceeds maximum (4096)");
+      throw new Error(
+        `wspulse: sendBufferSize exceeds maximum (${MAX_SEND_BUFFER_SIZE})`,
+      );
     }
   }
 

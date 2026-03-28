@@ -256,6 +256,24 @@ describe("resolveOptions validation", () => {
     );
   });
 
+  it("throws on NaN sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: NaN })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
+  it("throws on Infinity sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: Infinity })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
+  it("throws on non-integer sendBufferSize", () => {
+    expect(() => resolveOptions({ sendBufferSize: 1.5 })).toThrow(
+      "wspulse: sendBufferSize must be a finite integer",
+    );
+  });
+
   // valid boundary (should NOT throw)
   it("accepts max boundary values", () => {
     expect(() =>
