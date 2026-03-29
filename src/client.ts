@@ -43,73 +43,16 @@ export interface Client {
 
 /**
  * Convert `http://` and `https://` URLs to their WebSocket equivalents
- * (`ws://` and `wss://`). Pass through `ws://` and `wss://` unchanged.
+ * (`ws://` and `wss://`). All other URLs pass through unchanged — the
+ * underlying WebSocket library handles validation.
  *
  * @internal Exported for unit testing only.
- * @throws Error if the URL has no scheme or uses an unsupported scheme.
- *   This is a setup-time check — invalid URLs are programmer errors.
  */
 export function normalizeScheme(url: string): string {
-  // Pre-check: detect scheme presence and validity before URL parsing.
-  // This ensures unsupported schemes are reported correctly even when
-  // the URL is malformed (e.g. "ftp://[invalid" would otherwise fall
-  // into a generic parse-error path).
-  const schemeWithAuthority = /^([a-z][a-z0-9+.-]*):\/\//i;
-  const schemeOnly = /^([a-z][a-z0-9+.-]*):/i;
-  const supportedSchemes = /^(ws|wss|http|https)$/i;
-
-  const fullMatch = schemeWithAuthority.exec(url);
-  if (fullMatch) {
-    // Has scheme:// form — reject unsupported schemes before parsing.
-    if (!supportedSchemes.test(fullMatch[1])) {
-      throw new Error(
-        `wspulse: unsupported url scheme "${fullMatch[1].toLowerCase()}", use ws://, wss://, http://, or https://`,
-      );
-    }
-  } else {
-    // No scheme:// form. Check if there's a bare scheme (e.g. "ws:foo").
-    const bareMatch = schemeOnly.exec(url);
-    if (bareMatch) {
-      // Has a scheme but missing "//host" — e.g. "ws:foo", "http:foo".
-      throw new Error("wspulse: url must include host");
-    }
-    // No scheme at all.
-    throw new Error(
-      "wspulse: url must include scheme (ws://, wss://, http://, or https://)",
-    );
-  }
-
-  // Scheme is supported and in "://" form — parse for further validation.
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch (e) {
-    throw new Error(
-      `wspulse: invalid url: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-
-  // Verify host is present (catches edge cases where URL parser accepts
-  // a scheme:// form but resolves to an empty host).
-  if (!parsed.hostname) {
-    throw new Error("wspulse: url must include host");
-  }
-
-  switch (parsed.protocol) {
-    case "ws:":
-    case "wss:":
-      return url;
-    case "http:":
-      parsed.protocol = "ws:";
-      return parsed.toString();
-    case "https:":
-      parsed.protocol = "wss:";
-      return parsed.toString();
-    default:
-      throw new Error(
-        `wspulse: unsupported url scheme "${parsed.protocol.replace(":", "")}", use ws://, wss://, http://, or https://`,
-      );
-  }
+  if (url.startsWith("https://"))
+    return "wss://" + url.slice("https://".length);
+  if (url.startsWith("http://")) return "ws://" + url.slice("http://".length);
+  return url;
 }
 
 // ── WebSocket abstraction ─────────────────────────────────────────────────────

@@ -28,6 +28,8 @@ describe("normalizeScheme", () => {
     expect(result).toBe("wss://example.com/ws");
   });
 
+  // ── preserves path, query, fragment ────────────────────────────────────────
+
   it("converts http:// with port", () => {
     const result = normalizeScheme("http://127.0.0.1:9090/path");
     expect(result).toBe("ws://127.0.0.1:9090/path");
@@ -36,49 +38,5 @@ describe("normalizeScheme", () => {
   it("converts https:// with port and query", () => {
     const result = normalizeScheme("https://host:9443/ws?token=abc");
     expect(result).toBe("wss://host:9443/ws?token=abc");
-  });
-
-  // ── error: missing scheme ──────────────────────────────────────────────────
-
-  it("throws on missing scheme", () => {
-    expect(() => normalizeScheme("://no-scheme")).toThrow(
-      "wspulse: url must include scheme",
-    );
-  });
-
-  // ── error: malformed URL with recognized scheme ────────────────────────────
-
-  it("throws 'invalid url' for malformed URL with recognized scheme", () => {
-    expect(() => normalizeScheme("http://[invalid")).toThrow(
-      "wspulse: invalid url",
-    );
-  });
-
-  // ── error: missing host (scheme without "//") ──────────────────────────────
-
-  it("throws on ws:foo (no '//')", () => {
-    expect(() => normalizeScheme("ws:foo")).toThrow(
-      "wspulse: url must include host",
-    );
-  });
-
-  it("throws on http:foo (no '//')", () => {
-    expect(() => normalizeScheme("http:foo")).toThrow(
-      "wspulse: url must include host",
-    );
-  });
-
-  // ── error: unsupported scheme ──────────────────────────────────────────────
-
-  it("throws on unsupported scheme (ftp://)", () => {
-    expect(() => normalizeScheme("ftp://host/path")).toThrow(
-      'wspulse: unsupported url scheme "ftp"',
-    );
-  });
-
-  it("throws 'unsupported scheme' for malformed URL with unsupported scheme", () => {
-    expect(() => normalizeScheme("ftp://[invalid")).toThrow(
-      'wspulse: unsupported url scheme "ftp"',
-    );
   });
 });
