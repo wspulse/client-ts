@@ -39,6 +39,44 @@ export interface Client {
   readonly done: Promise<void>;
 }
 
+// ── URL scheme normalization ─────────────────────────────────────────────────
+
+/**
+ * Convert `http://` and `https://` URLs to their WebSocket equivalents
+ * (`ws://` and `wss://`). Pass through `ws://` and `wss://` unchanged.
+ *
+ * @internal Exported for unit testing only.
+ * @throws Error if the URL has no scheme or uses an unsupported scheme.
+ *   This is a setup-time check — invalid URLs are programmer errors.
+ */
+export function normalizeScheme(url: string): string {
+  try {
+    const parsed = new URL(url);
+    switch (parsed.protocol) {
+      case "ws:":
+      case "wss:":
+        return url;
+      case "http:":
+        parsed.protocol = "ws:";
+        return parsed.toString();
+      case "https:":
+        parsed.protocol = "wss:";
+        return parsed.toString();
+      default:
+        throw new Error(
+          `wspulse: unsupported url scheme "${parsed.protocol.replace(":", "")}", use ws://, wss://, http://, or https://`,
+        );
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("wspulse:")) {
+      throw e;
+    }
+    throw new Error(
+      "wspulse: url must include scheme (ws://, wss://, http://, or https://)",
+    );
+  }
+}
+
 // ── WebSocket abstraction ─────────────────────────────────────────────────────
 
 /**
@@ -157,6 +195,7 @@ export async function connect(
   url: string,
   opts?: ClientOptions,
 ): Promise<Client> {
+  url = normalizeScheme(url);
   const resolved = resolveOptions(opts);
   const ws = await dialWebSocket(url, resolved);
   return new WspulseClient(url, resolved, ws);
