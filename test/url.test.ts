@@ -54,10 +54,30 @@ describe("normalizeScheme", () => {
     );
   });
 
+  // ── error: missing host (scheme without "//") ──────────────────────────────
+
+  it("throws on ws:foo (no '//')", () => {
+    expect(() => normalizeScheme("ws:foo")).toThrow(
+      "wspulse: url must include host",
+    );
+  });
+
+  it("throws on http:foo (no '//')", () => {
+    expect(() => normalizeScheme("http:foo")).toThrow(
+      "wspulse: url must include host",
+    );
+  });
+
   // ── error: unsupported scheme ──────────────────────────────────────────────
 
   it("throws on unsupported scheme (ftp://)", () => {
     expect(() => normalizeScheme("ftp://host/path")).toThrow(
+      'wspulse: unsupported url scheme "ftp"',
+    );
+  });
+
+  it("throws 'unsupported scheme' for malformed URL with unsupported scheme", () => {
+    expect(() => normalizeScheme("ftp://[invalid")).toThrow(
       'wspulse: unsupported url scheme "ftp"',
     );
   });
