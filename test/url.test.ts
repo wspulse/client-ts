@@ -46,6 +46,14 @@ describe("normalizeScheme", () => {
     );
   });
 
+  // ── error: malformed URL with recognized scheme ────────────────────────────
+
+  it("throws 'invalid url' for malformed URL with recognized scheme", () => {
+    expect(() => normalizeScheme("http://[invalid")).toThrow(
+      "wspulse: invalid url",
+    );
+  });
+
   // ── error: unsupported scheme ──────────────────────────────────────────────
 
   it("throws on unsupported scheme (ftp://)", () => {

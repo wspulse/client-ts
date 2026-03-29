@@ -71,6 +71,13 @@ export function normalizeScheme(url: string): string {
     if (e instanceof Error && e.message.startsWith("wspulse:")) {
       throw e;
     }
+    // Distinguish "no scheme" from "has scheme but malformed".
+    const hasScheme = /^(wss?|https?):\/\//i.test(url);
+    if (hasScheme) {
+      throw new Error(
+        `wspulse: invalid url: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
     throw new Error(
       "wspulse: url must include scheme (ws://, wss://, http://, or https://)",
     );
@@ -185,7 +192,9 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * of `autoReconnect`. No callbacks fire and no Client is created.
  * `autoReconnect` only kicks in after a successful initial connection.
  *
- * @param url  WebSocket URL (e.g. `wss://host/ws`)
+ * @param url  WebSocket URL (e.g. `wss://host/ws`). Also accepts `http://`
+ *              and `https://` URLs, which are auto-converted to `ws://` and
+ *              `wss://` respectively.
  * @param opts Client options (callbacks, reconnect config, etc.)
  * @returns A {@link Client} in CONNECTED state.
  *
