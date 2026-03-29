@@ -39,4 +39,18 @@ describe("normalizeScheme", () => {
     const result = normalizeScheme("https://host:9443/ws?token=abc");
     expect(result).toBe("wss://host:9443/ws?token=abc");
   });
+
+  // ── case-insensitive (RFC 3986) ──────────────────────────────────────────
+
+  it("converts HTTP:// uppercase", () => {
+    expect(normalizeScheme("HTTP://host/ws")).toBe("ws://host/ws");
+  });
+
+  it("converts HTTPS:// uppercase", () => {
+    expect(normalizeScheme("HTTPS://host/ws")).toBe("wss://host/ws");
+  });
+
+  it("converts Http:// mixed case", () => {
+    expect(normalizeScheme("Http://host/ws")).toBe("ws://host/ws");
+  });
 });

@@ -49,9 +49,10 @@ export interface Client {
  * @internal Exported for unit testing only.
  */
 export function normalizeScheme(url: string): string {
-  if (url.startsWith("https://"))
+  const lower = url.slice(0, 8).toLowerCase();
+  if (lower.startsWith("https://"))
     return "wss://" + url.slice("https://".length);
-  if (url.startsWith("http://")) return "ws://" + url.slice("http://".length);
+  if (lower.startsWith("http://")) return "ws://" + url.slice("http://".length);
   return url;
 }
 
