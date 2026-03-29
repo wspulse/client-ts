@@ -3,7 +3,6 @@
  * All fields are optional at the wire layer.
  */
 export interface Frame {
-  id?: string;
   event?: string;
   payload?: unknown;
 }
