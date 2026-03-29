@@ -4,7 +4,7 @@
 
 ### Added
 
-- `connect()` auto-converts `http://` to `ws://` and `https://` to `wss://` URL schemes
+- `connect()` auto-converts `http://` to `ws://` and `https://` to `wss://` (case-insensitive per RFC 3986). Other schemes are passed through to the underlying WebSocket library.
 - `sendBufferSize` option — configurable outbound buffer capacity [1, 4096], default 256
 
 ---
