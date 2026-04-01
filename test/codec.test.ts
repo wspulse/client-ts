@@ -19,11 +19,11 @@ describe("JSONCodec", () => {
   });
 
   it("decodes a Uint8Array (UTF-8) into a frame", () => {
-    const json = '{"event":"test","id":"1"}';
+    const json = '{"event":"test","payload":"binary"}';
     const bytes = new TextEncoder().encode(json);
     const frame = JSONCodec.decode(bytes);
     expect(frame.event).toBe("test");
-    expect(frame.id).toBe("1");
+    expect(frame.payload).toBe("binary");
   });
 
   it("has binaryType 'text'", () => {
@@ -31,7 +31,7 @@ describe("JSONCodec", () => {
   });
 
   it("round-trips a frame", () => {
-    const frame: Frame = { id: "abc", event: "sys", payload: [1, 2, 3] };
+    const frame: Frame = { event: "sys", payload: [1, 2, 3] };
     const decoded = JSONCodec.decode(JSONCodec.encode(frame));
     expect(decoded).toEqual(frame);
   });

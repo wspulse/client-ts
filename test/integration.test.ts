@@ -90,7 +90,7 @@ describe("integration: wspulse/server", () => {
     expect(disconnectErr).toBeNull();
   });
 
-  it("round-trips all Frame fields (id, event, payload)", async () => {
+  it("round-trips all Frame fields (event, payload)", async () => {
     const received: Frame[] = [];
 
     testClient = await connect(serverUrl(), {
@@ -100,7 +100,6 @@ describe("integration: wspulse/server", () => {
     });
 
     const outbound: Frame = {
-      id: "test-id-001",
       event: "chat.message",
       payload: { user: "alice", text: "hi", n: 42, nested: { ok: true } },
     };

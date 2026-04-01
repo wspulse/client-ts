@@ -91,7 +91,6 @@ The default `JSONCodec` encodes frames as JSON text frames:
 
 ```json
 {
-  "id": "msg-001",
   "event": "chat.message",
   "payload": { "text": "hello" }
 }
@@ -147,7 +146,7 @@ const client = await connect(url, {
 | ----------------------- | ----------------------------------------------- |
 | `Client`                | Interface: `send()`, `close()`, `done`          |
 | `connect(url, opts?)`   | Connect and return a `Client`                   |
-| `Frame`                 | Interface: `{ id?, event?, payload? }`          |
+| `Frame`                 | Interface: `{ event?, payload? }`               |
 | `Codec`                 | Interface: `encode()`, `decode()`, `binaryType` |
 | `JSONCodec`             | Default codec — JSON text frames                |
 | `ClientOptions`         | Options object type                             |
