@@ -40,6 +40,11 @@ describe("normalizeScheme", () => {
     expect(result).toBe("wss://host:9443/ws?token=abc");
   });
 
+  it("converts http:// with path, query, and fragment", () => {
+    const result = normalizeScheme("http://host:8080/ws?token=abc#section");
+    expect(result).toBe("ws://host:8080/ws?token=abc#section");
+  });
+
   // ── case-insensitive (RFC 3986) ──────────────────────────────────────────
 
   it("converts HTTP:// uppercase", () => {
