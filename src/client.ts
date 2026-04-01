@@ -39,6 +39,25 @@ export interface Client {
   readonly done: Promise<void>;
 }
 
+// ── URL scheme normalization ─────────────────────────────────────────────────
+
+/**
+ * Convert `http://` and `https://` URLs to their WebSocket equivalents
+ * (`ws://` and `wss://`). All other URLs pass through unchanged — the
+ * underlying WebSocket implementation (`ws` on Node.js, native
+ * `WebSocket` in browsers) already validates schemes at connection
+ * time and surfaces catchable errors, so we avoid duplicating that.
+ *
+ * @internal Exported for unit testing only.
+ */
+export function normalizeScheme(url: string): string {
+  const lower = url.slice(0, 8).toLowerCase();
+  if (lower.startsWith("https://"))
+    return "wss://" + url.slice("https://".length);
+  if (lower.startsWith("http://")) return "ws://" + url.slice("http://".length);
+  return url;
+}
+
 // ── WebSocket abstraction ─────────────────────────────────────────────────────
 
 /**
@@ -147,7 +166,9 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * of `autoReconnect`. No callbacks fire and no Client is created.
  * `autoReconnect` only kicks in after a successful initial connection.
  *
- * @param url  WebSocket URL (e.g. `wss://host/ws`)
+ * @param url  WebSocket URL (e.g. `wss://host/ws`). Also accepts `http://`
+ *              and `https://` URLs, which are auto-converted to `ws://` and
+ *              `wss://` respectively.
  * @param opts Client options (callbacks, reconnect config, etc.)
  * @returns A {@link Client} in CONNECTED state.
  *
@@ -157,6 +178,7 @@ export async function connect(
   url: string,
   opts?: ClientOptions,
 ): Promise<Client> {
+  url = normalizeScheme(url);
   const resolved = resolveOptions(opts);
   const ws = await dialWebSocket(url, resolved);
   return new WspulseClient(url, resolved, ws);
