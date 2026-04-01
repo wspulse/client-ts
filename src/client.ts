@@ -44,7 +44,12 @@ export interface Client {
 /**
  * Convert `http://` and `https://` URLs to their WebSocket equivalents
  * (`ws://` and `wss://`). All other URLs pass through unchanged — the
- * underlying WebSocket library handles validation.
+ * underlying WebSocket implementation (`ws` on Node.js, native
+ * `WebSocket` in browsers) already validates schemes at connection
+ * time, so we intentionally avoid duplicating that check here.
+ * Unlike client-swift, where `URLSessionWebSocketTask` raises an
+ * uncatchable `NSException` for non-ws/wss schemes, both `ws` and
+ * the browser API surface catchable errors.
  *
  * @internal Exported for unit testing only.
  */
