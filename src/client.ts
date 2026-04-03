@@ -1,3 +1,4 @@
+import type { Clock } from "./clock.js";
 import type { Frame } from "./frame.js";
 import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
@@ -213,10 +214,14 @@ class WspulseClient implements Client {
   /** WebSocket instance the pong handler is attached to (for removeListener). */
   private pongHandlerWs: Transport | null = null;
 
+  /** Timer clock — replaced in tests for deterministic behaviour. @internal */
+  private readonly clock: Clock;
+
   constructor(url: string, opts: ResolvedOptions, ws: Transport) {
     this.url = url;
     this.opts = opts;
     this.ws = ws;
+    this.clock = opts._clock;
     this.abortController = new AbortController();
 
     let resolve!: () => void;
@@ -433,12 +438,12 @@ class WspulseClient implements Client {
   private abortableDelay(ms: number, signal: AbortSignal): Promise<boolean> {
     if (signal.aborted) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
+      const timer = this.clock.setTimeout(() => {
         signal.removeEventListener("abort", onAbort);
         resolve(false);
       }, ms);
       const onAbort = () => {
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         resolve(true);
       };
       signal.addEventListener("abort", onAbort, { once: true });
@@ -453,7 +458,7 @@ class WspulseClient implements Client {
    */
   private startDrain(): void {
     if (this.drainTimer !== null) return;
-    this.drainTimer = setTimeout(() => {
+    this.drainTimer = this.clock.setTimeout(() => {
       this.drainTimer = null;
       this.flushSendBuffer();
     }, 5);
@@ -462,7 +467,7 @@ class WspulseClient implements Client {
   /** Stop the drain timer. */
   private stopDrain(): void {
     if (this.drainTimer !== null) {
-      clearTimeout(this.drainTimer);
+      this.clock.clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
   }
@@ -489,7 +494,7 @@ class WspulseClient implements Client {
     // Reset (or start) the pong deadline timer.
     const resetPongDeadline = () => {
       this.clearPongDeadline();
-      this.pongDeadlineTimer = setTimeout(() => {
+      this.pongDeadlineTimer = this.clock.setTimeout(() => {
         // Server failed to respond — forcefully destroy the socket so the
         // close event fires immediately without waiting for a close handshake.
         if (typeof ws.terminate === "function") {
@@ -517,7 +522,7 @@ class WspulseClient implements Client {
     resetPongDeadline();
 
     // Periodically send Ping frames.
-    this.pingTimer = setInterval(() => {
+    this.pingTimer = this.clock.setInterval(() => {
       if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
         ws.ping();
       }
@@ -528,7 +533,7 @@ class WspulseClient implements Client {
   private stopHeartbeat(): void {
     this.clearPongDeadline();
     if (this.pingTimer !== null) {
-      clearInterval(this.pingTimer);
+      this.clock.clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
     // Remove pong listener from the previous WebSocket to prevent leaks.
@@ -546,7 +551,7 @@ class WspulseClient implements Client {
   /** Clear the pong deadline timer only. */
   private clearPongDeadline(): void {
     if (this.pongDeadlineTimer !== null) {
-      clearTimeout(this.pongDeadlineTimer);
+      this.clock.clearTimeout(this.pongDeadlineTimer);
       this.pongDeadlineTimer = null;
     }
   }
@@ -599,7 +604,7 @@ class WspulseClient implements Client {
     // data has been handed off to the kernel. If the timer fires first the
     // socket is closed, which will abort any in-progress send.
     let settled = false;
-    const timer = setTimeout(() => {
+    const timer = this.clock.setTimeout(() => {
       if (settled) return;
       settled = true;
       try {
@@ -613,7 +618,7 @@ class WspulseClient implements Client {
       (err) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         if (err) {
           try {
             ws.close(1001, "write error");

@@ -4,6 +4,9 @@
 
 ### Added
 
+- `_clock` option in `ClientOptions` for injecting a deterministic timer implementation in tests (test-only, `@internal`)
+- `Clock` interface in `src/clock.ts` — abstracts `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`
+- `FakeClock` in `test/component/fake-clock.ts` — async `advance(ms)` drives virtual time for deterministic component tests
 - `connect()` auto-converts `http://` to `ws://` and `https://` to `wss://` (case-insensitive per RFC 3986). Other schemes are passed through to the underlying WebSocket library.
 - `sendBufferSize` option — configurable outbound buffer capacity [1, 4096], default 256
 - `Transport` interface exported from `src/transport.ts` for mock implementations

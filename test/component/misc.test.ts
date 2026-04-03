@@ -7,6 +7,7 @@ import type { Client } from "../../src/client.js";
 import type { Frame } from "../../src/frame.js";
 import { ConnectionLostError, SendBufferFullError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
+import { FakeClock } from "./fake-clock.js";
 
 // ── test state ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ afterEach(async () => {
  * server-side events.
  */
 async function connectMock(
+  clock: FakeClock,
   opts?: Parameters<typeof connect>[1],
   transport?: MockTransport,
 ): Promise<{ client: Client; transport: MockTransport }> {
@@ -35,6 +37,7 @@ async function connectMock(
   const client = await connect("ws://mock/ws", {
     ...opts,
     _dialer: dialer.dial,
+    _clock: clock,
   });
   testClient = client;
   return { client, transport: t };
@@ -46,7 +49,8 @@ describe("component: misc", () => {
   // Concurrent sends (single-threaded JS — no data race, but verifies
   // multiple synchronous sends from different microtask contexts)
   it("concurrent sends do not race", async () => {
-    const { client, transport } = await connectMock();
+    const clock = new FakeClock();
+    const { client, transport } = await connectMock(clock);
 
     const senders = 50;
     const msgsPerSender = 5;
@@ -62,8 +66,8 @@ describe("component: misc", () => {
       ),
     );
 
-    // Wait for drain.
-    await new Promise((r) => setTimeout(r, 10));
+    // Advance past the drain timer (5 ms).
+    await clock.advance(10);
 
     expect(transport.sent.length).toBe(total);
 
@@ -76,7 +80,7 @@ describe("component: misc", () => {
 
   // Send buffer full -> SendBufferFullError
   it("send buffer full throws SendBufferFullError", async () => {
-    const { client } = await connectMock({
+    const { client } = await connectMock(new FakeClock(), {
       sendBufferSize: 2,
     });
 
@@ -97,12 +101,14 @@ describe("component: misc", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
+    const clock = new FakeClock();
 
     const t = new MockTransport();
     // Stop responding to pings so the pong deadline fires.
     t.suppressPongs();
 
     const { client } = await connectMock(
+      clock,
       {
         onDisconnect(err) {
           disconnectErr = err;
@@ -113,7 +119,8 @@ describe("component: misc", () => {
       t,
     );
 
-    // Wait for pong timeout -> transport drop -> ConnectionLostError.
+    // Advance past the pong deadline (150 ms) to trigger ConnectionLostError.
+    await clock.advance(200);
     await disconnected;
 
     expect(disconnectErr).toBeInstanceOf(ConnectionLostError);
