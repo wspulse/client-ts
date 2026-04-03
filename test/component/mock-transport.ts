@@ -4,8 +4,8 @@
  * Zero network I/O, fully deterministic. Implements the {@link Transport}
  * interface with helpers to inject messages, close events, and errors.
  */
-import type { Transport } from "../src/transport.js";
-import type { ResolvedOptions } from "../src/options.js";
+import type { Transport } from "../../src/transport.js";
+import type { ResolvedOptions } from "../../src/options.js";
 
 /** WebSocket readyState constants. */
 const WS_OPEN = 1;
