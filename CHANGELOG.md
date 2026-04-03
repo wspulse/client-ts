@@ -8,7 +8,7 @@
 - `sendBufferSize` option — configurable outbound buffer capacity [1, 4096], default 256
 - `Transport` interface exported from `src/transport.ts` for mock implementations
 - `_dialer` option in `ClientOptions` for injecting test transport (test-only)
-- 19 deterministic component tests (`test/component.test.ts`) using mock transport — zero network I/O
+- 19 reliable component tests (`test/component/*.test.ts`) using mock transport — zero network I/O
 
 ### Changed
 

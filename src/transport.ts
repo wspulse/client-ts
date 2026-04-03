@@ -4,8 +4,8 @@
  * Browser `WebSocket` and the `ws` package both satisfy this shape.
  * This decouples the client from any specific WebSocket implementation.
  *
- * Exported so tests can provide mock implementations via the `_dialer`
- * option without depending on a real WebSocket library.
+ * Exported so tests and advanced integrations can provide mock or compatible
+ * implementations without depending on a specific WebSocket library.
  */
 export interface Transport {
   readonly readyState: number;
