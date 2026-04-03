@@ -7,6 +7,7 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 ## Architecture
 
 - **`src/client.ts`** — `connect()` entry point and internal `WspulseClient` class. Manages WebSocket lifecycle, read loop, write loop, and reconnect loop.
+- **`src/transport.ts`** — `Transport` interface (minimal WebSocket shape). Extracted so tests can provide mock implementations via `_dialer`.
 - **`src/options.ts`** — `ClientOptions` interface and `resolveOptions()` to merge with defaults.
 - **`src/codec.ts`** — `Codec` interface and `JSONCodec` default implementation. Mirrors Go `core` module's `Codec`.
 - **`src/frame.ts`** — `Frame` interface (event, payload — all optional).
@@ -17,13 +18,14 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 ## Development Workflow
 
 ```bash
-make fmt        # format with Prettier
-make lint       # ESLint + tsc --noEmit
-make test       # vitest run
-make check      # prettier --check + lint + test (pre-commit gate)
-make build      # tsup → dist/
-make test-cover # vitest with v8 coverage
-make clean      # remove dist/ and coverage/
+make fmt              # format with Prettier
+make lint             # ESLint + tsc --noEmit
+make test             # vitest run (unit + component tests)
+make check            # prettier --check + lint + test (pre-commit gate)
+make build            # tsup -> dist/
+make test-cover       # vitest with v8 coverage
+make test-integration # optional: integration tests against live testserver
+make clean            # remove dist/ and coverage/
 ```
 
 ## Conventions

@@ -1,5 +1,6 @@
 import type { Frame } from "./frame.js";
 import type { Codec } from "./codec.js";
+import type { Transport } from "./transport.js";
 import { JSONCodec } from "./codec.js";
 
 /**
@@ -103,6 +104,15 @@ export interface ClientOptions {
    * Must be between 1 and 4096 inclusive. Default: 256.
    */
   sendBufferSize?: number;
+
+  /**
+   * Custom dialer function for testing.
+   *
+   * @internal Test-only. When provided, `connect()` and the reconnect loop
+   * use this function instead of opening a real WebSocket connection.
+   * The default (`undefined`) falls back to the built-in `dialWebSocket`.
+   */
+  _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
 }
 
 /** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
@@ -150,6 +160,7 @@ export interface ResolvedOptions {
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
   sendBufferSize: number;
+  _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
 }
 
 /** @internal Shared no-op callback for all unset option callbacks. */
@@ -217,6 +228,10 @@ function validateOptions(opts: ClientOptions): void {
     }
   }
 
+  if (opts._dialer !== undefined && typeof opts._dialer !== "function") {
+    throw new Error("wspulse: _dialer must be a function");
+  }
+
   if (opts.autoReconnect !== undefined) {
     const rc = opts.autoReconnect;
     if (rc.maxRetries < 0) {
@@ -267,5 +282,6 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
     sendBufferSize: opts?.sendBufferSize ?? DEFAULT_SEND_BUFFER_SIZE,
+    _dialer: opts?._dialer,
   };
 }

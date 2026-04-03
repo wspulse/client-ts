@@ -1,39 +1,52 @@
-# Integration Test Coverage — client-ts
+# Component Test Coverage — client-ts
 
 > **Contract:** all scenarios defined in
 > [`.github/doc/contracts/client/integration-test-scenarios.md`](https://github.com/wspulse/.github/blob/main/doc/contracts/client/integration-test-scenarios.md)
 
-Integration tests run against a live `wspulse/server` via the shared
-[testserver](https://github.com/wspulse/testserver). The Go test server is spawned by vitest
-`globalSetup` (`test/global-setup.ts`).
+Component tests use a mock transport (`test/component/mock-transport.ts`) to simulate
+WebSocket behaviour without real network I/O. The suite is designed to run
+reliably as part of `make check` (via `npx vitest run`).
 
-**Run:** `npm run test:integration` (or `make test-integration`)
+**Run:** `make test` (or `npx vitest run`)
 
 ## Scenario Matrix
 
-| #   | Scenario                                                          | Test Name                                                              | Query Params      |
-| --- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------- |
-| 1   | Connect → send → echo → close clean                               | `connects, sends a frame, receives echo, and closes cleanly`           | —                 |
-| 2   | Server drops → onTransportDrop + onDisconnect (no reconnect)      | `server drop fires onTransportDrop and onDisconnect without reconnect` | `?id=…`           |
-| 3   | Auto-reconnect: server drops → reconnects within maxRetries       | `reconnects after kick and resumes echo (scenario 3)`                  | `?id=…`           |
-| 4   | Max retries exhausted → `onDisconnect(RetriesExhaustedError)`     | `fires RetriesExhaustedError after shutdown (scenario 4)`              | `?id=…`           |
-| 5   | `close()` during reconnect → loop stops, `onDisconnect(null)`     | `close() during reconnect fires onDisconnect(null) (scenario 5)`       | `?id=…`           |
-| 6   | `send()` on closed client → `ConnectionClosedError`               | `send after close throws ConnectionClosedError`                        | —                 |
-| 7   | Heartbeat pong timeout → `ConnectionLostError`                    | `pong timeout triggers ConnectionLostError (scenario 7)`               | `?ignore_pings=1` |
-| 8   | Concurrent sends: no data race or interleaving                    | N/A — single-threaded JS (see Additional Tests)                        | —                 |
-| 9   | Concurrent `close()` + transport drop → onDisconnect exactly once | `close() racing with transport drop fires onDisconnect exactly once`   | `?id=…`           |
+| #   | Scenario                                                          | Test Name                                                              |
+| --- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1   | Connect -> send -> echo -> close clean                            | `connects, sends a frame, receives echo, and closes cleanly`           |
+| 2   | Server drops -> onTransportDrop + onDisconnect (no reconnect)     | `server drop fires onTransportDrop and onDisconnect without reconnect` |
+| 3   | Auto-reconnect: server drops -> reconnects within maxRetries      | `reconnects after transport drop and resumes sending`                  |
+| 4   | Max retries exhausted -> `onDisconnect(RetriesExhaustedError)`    | `fires RetriesExhaustedError after max retries exhausted`              |
+| 5   | `close()` during reconnect -> loop stops, `onDisconnect(null)`   | `close() during reconnect fires onDisconnect(null)`                    |
+| 6   | `send()` on closed client -> `ConnectionClosedError`              | `send after close throws ConnectionClosedError`                        |
+| 7   | Heartbeat pong timeout -> `ConnectionLostError`                   | `pong timeout triggers ConnectionLostError`                            |
+| 8   | Concurrent sends: no data race or interleaving                    | N/A -- single-threaded JS (see Additional Tests)                       |
+| 9   | Concurrent `close()` + transport drop -> onDisconnect exactly once| `close() racing with transport drop fires onDisconnect exactly once`   |
 
 ## Additional Tests
 
-| Test Name                                                 | What It Covers                             |
-| --------------------------------------------------------- | ------------------------------------------ |
-| `round-trips all Frame fields (event, payload)`           | Full Frame field fidelity through the wire |
-| `handles server rejection (ConnectFunc error) gracefully` | Server returns HTTP 403 via `?reject=1`    |
-| `sends multiple frames and receives them in order`        | Message ordering preservation              |
-| `connects to a specific room via query param`             | Room routing via `?room=…`                 |
-| `concurrent sends do not race`                            | 50 senders × 5 messages each (scenario 8)  |
-| `detects server-initiated kick via control API`           | `POST /kick?id=…` → `onDisconnect(Error)`  |
-| `onDisconnect fires exactly once on close`                | User-initiated close → single callback     |
-| `close is idempotent`                                     | Multiple `close()` calls → single callback |
+| Test Name                                                 | What It Covers                                    |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| `round-trips all Frame fields (event, payload)`           | Full Frame field fidelity through codec            |
+| `handles dial failure gracefully`                         | Dialer error rejects connect() Promise             |
+| `sends multiple frames and receives them in order`        | Message ordering preservation                      |
+| `concurrent sends do not race`                            | 50 senders x 5 messages each (scenario 8)          |
+| `detects server-initiated close`                          | Transport close -> `onDisconnect(Error)`           |
+| `onDisconnect fires exactly once on close`                | User-initiated close -> single callback            |
+| `close is idempotent`                                     | Multiple `close()` calls -> single callback        |
+| `send buffer full throws SendBufferFullError`             | Buffer overflow enforcement                        |
+| `onDisconnect fires exactly once on transport drop`       | Transport drop -> single callback                  |
+| `onTransportRestore does not fire on initial connect`     | Restore callback reserved for reconnect only       |
+| `passes URL with query params to dialer`                  | URL forwarding to dialer function                  |
 
-**Total: 16 integration tests** (8 scenarios + 8 additional; scenario 8 N/A → moved to additional).
+**Total: 19 component tests** (8 scenarios + 11 additional; scenario 8 N/A -> moved to additional).
+
+## Legacy Integration Tests
+
+The original integration tests (`test/integration.test.ts`) tested against a live
+`wspulse/server` via the shared testserver. These have been superseded by the
+component tests above. The integration test file and `vitest.integration.config.ts`
+are retained for optional end-to-end validation but are not part of the per-commit
+CI pipeline.
+
+**Run (optional):** `make test-integration` (requires Go testserver as sibling repo)
