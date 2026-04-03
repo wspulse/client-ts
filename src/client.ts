@@ -1,4 +1,5 @@
 import type { Frame } from "./frame.js";
+import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
 import { resolveOptions } from "./options.js";
 import {
@@ -58,31 +59,7 @@ export function normalizeScheme(url: string): string {
   return url;
 }
 
-// ── WebSocket abstraction ─────────────────────────────────────────────────────
-
-/**
- * Minimal WebSocket interface consumed by the client.
- *
- * Browser `WebSocket` and the `ws` package both satisfy this shape.
- * This decouples the client from any specific WebSocket implementation.
- */
-interface WS {
-  readonly readyState: number;
-  onmessage: ((ev: { data: unknown }) => void) | null;
-  onclose: ((ev: { code: number; reason: string }) => void) | null;
-  onerror: ((ev: unknown) => void) | null;
-  onopen: ((ev: unknown) => void) | null;
-  send(data: string | ArrayBuffer | Uint8Array | Blob): void;
-  close(code?: number, reason?: string): void;
-  /** Node.js `ws` library: register event listener (ping, pong, etc.). */
-  on?(event: string, listener: (...args: unknown[]) => void): void;
-  /** Node.js `ws` library: remove event listener. */
-  removeListener?(event: string, listener: (...args: unknown[]) => void): void;
-  /** Node.js `ws` library: send a WebSocket Ping frame. */
-  ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
-  /** Node.js `ws` library: forcefully destroy the socket without close handshake. */
-  terminate?(): void;
-}
+// ── WebSocket dialer ─────────────────────────────────────────────────────────
 
 /** WebSocket readyState constants. */
 const WS_OPEN = 1;
@@ -96,15 +73,20 @@ const WS_OPEN = 1;
  * Uses dynamic `import("ws")` so the function works in both Node.js ESM and
  * CJS environments without relying on `require`, which is unavailable in ESM.
  */
-async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
+async function dialWebSocket(
+  url: string,
+  opts: ResolvedOptions,
+): Promise<Transport> {
   // Prefer 'ws' library when available (Node.js) — it supports custom
   // headers and has consistent binary/text handling across Node versions.
   // Dynamic import works in both Node.js ESM and CJS; falls back to the
   // native browser WebSocket API when 'ws' is not installed.
-  let wsImpl: { new (url: string, opts?: unknown): WS } | null = null;
+  let wsImpl: { new (url: string, opts?: unknown): Transport } | null = null;
   try {
     const mod = await import("ws");
-    wsImpl = (mod.default ?? mod) as { new (url: string, opts?: unknown): WS };
+    wsImpl = (mod.default ?? mod) as {
+      new (url: string, opts?: unknown): Transport;
+    };
   } catch {
     // 'ws' not installed — will use globalThis.WebSocket below.
   }
@@ -113,8 +95,8 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
   const wsOpts: Record<string, unknown> = {};
   if (hasHeaders) wsOpts.headers = opts.dialHeaders;
 
-  return new Promise<WS>((resolve, reject) => {
-    let ws: WS;
+  return new Promise<Transport>((resolve, reject) => {
+    let ws: Transport;
 
     if (wsImpl !== null) {
       ws = new wsImpl(url, Object.keys(wsOpts).length > 0 ? wsOpts : undefined);
@@ -128,7 +110,7 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
         );
         return;
       }
-      ws = new globalThis.WebSocket(url) as unknown as WS;
+      ws = new globalThis.WebSocket(url) as unknown as Transport;
     }
 
     ws.onopen = () => {
@@ -180,7 +162,8 @@ export async function connect(
 ): Promise<Client> {
   url = normalizeScheme(url);
   const resolved = resolveOptions(opts);
-  const ws = await dialWebSocket(url, resolved);
+  const dial = resolved._dialer ?? dialWebSocket;
+  const ws = await dial(url, resolved);
   return new WspulseClient(url, resolved, ws);
 }
 
@@ -195,7 +178,7 @@ export async function connect(
 class WspulseClient implements Client {
   private readonly url: string;
   private readonly opts: ResolvedOptions;
-  private ws: WS;
+  private ws: Transport;
 
   /** Bounded send buffer (throws when full). */
   private readonly sendBuffer: (string | Uint8Array)[] = [];
@@ -228,9 +211,9 @@ class WspulseClient implements Client {
   private pongHandler: (() => void) | null = null;
 
   /** WebSocket instance the pong handler is attached to (for removeListener). */
-  private pongHandlerWs: WS | null = null;
+  private pongHandlerWs: Transport | null = null;
 
-  constructor(url: string, opts: ResolvedOptions, ws: WS) {
+  constructor(url: string, opts: ResolvedOptions, ws: Transport) {
     this.url = url;
     this.opts = opts;
     this.ws = ws;
@@ -285,7 +268,7 @@ class WspulseClient implements Client {
    * Attach message/close/error listeners to a WebSocket instance.
    * Called on initial connect and after each successful reconnect.
    */
-  private attachListeners(ws: WS): void {
+  private attachListeners(ws: Transport): void {
     ws.onmessage = (ev) => {
       if (this.closed || this.disconnectFired) return;
 
@@ -405,9 +388,10 @@ class WspulseClient implements Client {
       if (aborted || this.closed) return;
 
       // Attempt to dial.
-      let newWs: WS;
+      let newWs: Transport;
       try {
-        newWs = await dialWebSocket(this.url, this.opts);
+        const dial = this.opts._dialer ?? dialWebSocket;
+        newWs = await dial(this.url, this.opts);
       } catch {
         // Dial failed — increment attempt and retry.
         attempt++;
@@ -496,7 +480,7 @@ class WspulseClient implements Client {
    * There is no programmatic access to ping/pong frames, so heartbeat
    * monitoring is a no-op in browser environments.
    */
-  private startHeartbeat(ws: WS): void {
+  private startHeartbeat(ws: Transport): void {
     // Only meaningful when ws supports .on() and .ping() (Node.js ws lib).
     if (typeof ws.on !== "function" || typeof ws.ping !== "function") return;
 

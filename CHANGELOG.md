@@ -6,6 +6,13 @@
 
 - `connect()` auto-converts `http://` to `ws://` and `https://` to `wss://` (case-insensitive per RFC 3986). Other schemes are passed through to the underlying WebSocket library.
 - `sendBufferSize` option — configurable outbound buffer capacity [1, 4096], default 256
+- `Transport` interface exported from `src/transport.ts` for mock implementations
+- `_dialer` option in `ClientOptions` for injecting test transport (test-only)
+- 19 deterministic component tests (`test/component.test.ts`) using mock transport — zero network I/O
+
+### Changed
+
+- `test-integration` CI job removed; component tests run as part of `lint-test`
 
 ### Removed
 
