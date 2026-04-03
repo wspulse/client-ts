@@ -4,8 +4,8 @@
 > [`.github/doc/contracts/client/integration-test-scenarios.md`](https://github.com/wspulse/.github/blob/main/doc/contracts/client/integration-test-scenarios.md)
 
 Component tests use a mock transport (`test/mock-transport.ts`) to simulate
-WebSocket behaviour without real network I/O. All tests are deterministic and
-run as part of `make check` (via `npx vitest run`).
+WebSocket behaviour without real network I/O. The suite is designed to run
+reliably as part of `make check` (via `npx vitest run`).
 
 **Run:** `make test` (or `npx vitest run`)
 

@@ -228,6 +228,10 @@ function validateOptions(opts: ClientOptions): void {
     }
   }
 
+  if (opts._dialer !== undefined && typeof opts._dialer !== "function") {
+    throw new Error("wspulse: _dialer must be a function");
+  }
+
   if (opts.autoReconnect !== undefined) {
     const rc = opts.autoReconnect;
     if (rc.maxRetries < 0) {
