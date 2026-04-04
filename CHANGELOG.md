@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.5.0] - 2026-04-04
+
 ### Added
 
 - `_clock` option in `ClientOptions` for injecting a deterministic timer implementation in tests (test-only, `@internal`)
