@@ -24,7 +24,6 @@ make test             # vitest run (unit + component tests)
 make check            # prettier --check + lint + test (pre-commit gate)
 make build            # tsup -> dist/
 make test-cover       # vitest with v8 coverage
-make test-integration # optional: integration tests against live testserver
 make clean            # remove dist/ and coverage/
 ```
 

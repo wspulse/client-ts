@@ -18,7 +18,6 @@ export default tseslint.config(
       "coverage/",
       "node_modules/",
       "tsup.config.ts",
-      "vitest.integration.config.ts",
     ],
   },
 );
