@@ -273,4 +273,29 @@ describe("component: reconnect", () => {
     expect(drops[0]).toBeInstanceOf(Error);
     expect(drops[1]).toBeNull();
   });
+
+  // Scenario 9: throwing onTransportDrop does not prevent onDisconnect or done
+  it("throwing onTransportDrop does not hang the client", async () => {
+    let disconnectFired = false;
+
+    const t1 = new MockTransport();
+    const dialer = new MockDialer([t1]);
+
+    testClient = await connect("ws://mock/ws", {
+      onTransportDrop() {
+        throw new Error("callback error");
+      },
+      onDisconnect() {
+        disconnectFired = true;
+      },
+      _dialer: dialer.dial,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    testClient!.close();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await testClient!.done;
+
+    expect(disconnectFired).toBe(true);
+  });
 });

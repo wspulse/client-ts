@@ -676,14 +676,22 @@ class WspulseClient implements Client {
     // On clean close while NOT reconnecting, fire onTransportDrop(null) before
     // onDisconnect. When reconnecting, handleTransportDrop already fired — skip.
     if (err === null && !this.reconnecting) {
-      this.opts.onTransportDrop(null);
+      try {
+        this.opts.onTransportDrop(null);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onTransportDrop threw", cbErr);
+      }
     }
     this.reconnecting = false;
 
     // Fire onDisconnect exactly once.
     if (!this.disconnectFired) {
       this.disconnectFired = true;
-      this.opts.onDisconnect(err);
+      try {
+        this.opts.onDisconnect(err);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onDisconnect threw", cbErr);
+      }
     }
 
     // Resolve the done Promise.
