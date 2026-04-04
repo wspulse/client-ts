@@ -664,6 +664,12 @@ class WspulseClient implements Client {
       // Already closed — ignore.
     }
 
+    // On clean close, fire onTransportDrop(null) before onDisconnect.
+    // Unexpected drops already fired onTransportDrop in handleTransportDrop.
+    if (err === null) {
+      this.opts.onTransportDrop(null);
+    }
+
     // Fire onDisconnect exactly once.
     if (!this.disconnectFired) {
       this.disconnectFired = true;

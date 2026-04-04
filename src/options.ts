@@ -69,10 +69,12 @@ export interface ClientOptions {
   onTransportRestore?: () => void;
 
   /**
-   * Called each time the underlying WebSocket connection drops unexpectedly,
-   * before any reconnect attempt. Does not fire when `close()` is called.
+   * Called each time the underlying WebSocket connection closes, before any
+   * reconnect attempt. Fires with `null` on a clean `close()` call, or with
+   * the transport error on unexpected drops. When `close()` is called while
+   * reconnecting, this callback does not fire again.
    */
-  onTransportDrop?: (err: Error) => void;
+  onTransportDrop?: (err: Error | null) => void;
 
   /**
    * Wire-format codec for encoding/decoding {@link Frame}s.
@@ -163,7 +165,7 @@ export interface ResolvedOptions {
   onMessage: (frame: Frame) => void;
   onDisconnect: (err: Error | null) => void;
   onTransportRestore: () => void;
-  onTransportDrop: (err: Error) => void;
+  onTransportDrop: (err: Error | null) => void;
   codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
   heartbeat: HeartbeatOptions;

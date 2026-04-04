@@ -49,6 +49,7 @@ describe("component: basic", () => {
   it("connects, sends a frame, receives echo, and closes cleanly", async () => {
     const received: Frame[] = [];
     let disconnectErr: Error | null | undefined;
+    let transportDropErr: Error | null | undefined;
     const clock = new FakeClock();
 
     const { client, transport } = await connectMock(clock, {
@@ -57,6 +58,9 @@ describe("component: basic", () => {
       },
       onDisconnect(err) {
         disconnectErr = err;
+      },
+      onTransportDrop(err) {
+        transportDropErr = err;
       },
     });
 
@@ -81,6 +85,7 @@ describe("component: basic", () => {
     client.close();
     await client.done;
 
+    expect(transportDropErr).toBeNull();
     expect(disconnectErr).toBeNull();
   });
 

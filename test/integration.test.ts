@@ -226,7 +226,7 @@ describe("integration: wspulse/server", () => {
 
   it("server drop fires onTransportDrop and onDisconnect without reconnect (scenario 2)", async () => {
     const connectionId = "drop-no-reconnect-ts";
-    let transportDropErr: Error | undefined;
+    let transportDropErr: Error | null | undefined;
     let disconnectErr: Error | null | undefined;
     let transportDropResolve: () => void = () => {};
     const transportDropped = new Promise<void>((r) => {
