@@ -163,4 +163,45 @@ describe("component: reconnect", () => {
     // User-initiated close during reconnect -> onDisconnect(null).
     expect(disconnectErr).toBeNull();
   });
+
+  // Scenario 6: close() during reconnect -> onTransportDrop fires exactly once
+  it("close() during reconnect fires onTransportDrop exactly once", async () => {
+    let transportDropCount = 0;
+    let disconnectResolve: () => void = () => {};
+    const disconnected = new Promise<void>((r) => {
+      disconnectResolve = r;
+    });
+    const clock = new FakeClock();
+
+    const t1 = new MockTransport();
+    const dialer = new MockDialer([
+      t1,
+      new Error("dial fail 1"),
+      new Error("dial fail 2"),
+    ]);
+
+    testClient = await connect("ws://mock/ws", {
+      onTransportDrop() {
+        transportDropCount++;
+        // Close while the reconnect loop is active.
+        queueMicrotask(() => {
+          testClient?.close();
+        });
+      },
+      onDisconnect() {
+        disconnectResolve();
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 100, maxDelay: 500 },
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+
+    // Trigger transport drop -> onTransportDrop fires once with Error.
+    t1.injectClose(1006, "");
+
+    await disconnected;
+
+    // close() during reconnect must not fire onTransportDrop a second time.
+    expect(transportDropCount).toBe(1);
+  });
 });

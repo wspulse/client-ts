@@ -202,6 +202,9 @@ class WspulseClient implements Client {
   /** Whether onDisconnect has been called (exactly-once guard). */
   private disconnectFired = false;
 
+  /** Whether the reconnect loop is active. Guards onTransportDrop(null) in shutdown. */
+  private reconnecting = false;
+
   /** Pong deadline timer — fires when server stops responding. */
   private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -379,6 +382,7 @@ class WspulseClient implements Client {
     >;
     const signal = this.abortController.signal;
     let attempt = 0;
+    this.reconnecting = true;
 
     while (!this.closed) {
       // Check max retries.
@@ -664,11 +668,12 @@ class WspulseClient implements Client {
       // Already closed — ignore.
     }
 
-    // On clean close, fire onTransportDrop(null) before onDisconnect.
-    // Unexpected drops already fired onTransportDrop in handleTransportDrop.
-    if (err === null) {
+    // On clean close while NOT reconnecting, fire onTransportDrop(null) before
+    // onDisconnect. When reconnecting, handleTransportDrop already fired — skip.
+    if (err === null && !this.reconnecting) {
       this.opts.onTransportDrop(null);
     }
+    this.reconnecting = false;
 
     // Fire onDisconnect exactly once.
     if (!this.disconnectFired) {
