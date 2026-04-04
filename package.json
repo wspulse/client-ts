@@ -19,7 +19,6 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:watch": "vitest",
     "test:cover": "vitest run --coverage",
     "lint": "eslint src/ test/ && tsc --noEmit",
