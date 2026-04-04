@@ -1,7 +1,7 @@
 # Component Test Coverage — client-ts
 
 > **Contract:** all scenarios defined in
-> [`.github/doc/contracts/client/integration-test-scenarios.md`](https://github.com/wspulse/.github/blob/main/doc/contracts/client/integration-test-scenarios.md)
+> [`.github/doc/contracts/client/test-scenarios.md`](https://github.com/wspulse/.github/blob/main/doc/contracts/client/test-scenarios.md)
 
 Component tests use a mock transport (`test/component/mock-transport.ts`) to simulate
 WebSocket behaviour without real network I/O. The suite is designed to run
