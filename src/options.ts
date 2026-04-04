@@ -172,6 +172,7 @@ export interface ResolvedOptions {
   dialHeaders: Record<string, string>;
   sendBufferSize: number;
   _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
+  /** @internal */
   _clock: Clock;
 }
 
