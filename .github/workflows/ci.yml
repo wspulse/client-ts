@@ -2,17 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'feat/**', 'feature/**', 'refactor/**', 'bugfix/**', 'fix/**', 'chore/**']
+    branches:
+      [
+        main,
+        develop,
+        "feat/**",
+        "feature/**",
+        "refactor/**",
+        "bugfix/**",
+        "fix/**",
+        "chore/**",
+      ]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.github/instructions/**'
+      - "**.md"
+      - "LICENSE"
+      - ".github/instructions/**"
   pull_request:
     branches: [main, develop]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.github/instructions/**'
+      - "**.md"
+      - "LICENSE"
+      - ".github/instructions/**"
 
 jobs:
   lint-test:

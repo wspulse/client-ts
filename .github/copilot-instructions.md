@@ -108,15 +108,16 @@ Pull all comments that have not received a reply from the PR author. Bot-generat
 
 Evaluate against:
 
-| Criterion | Question |
-|-----------|----------|
-| **Validity** | Is the observation correct? Is the suggestion reasonable? |
+| Criterion    | Question                                                                           |
+| ------------ | ---------------------------------------------------------------------------------- |
+| **Validity** | Is the observation correct? Is the suggestion reasonable?                          |
 | **Severity** | Is it a bug, a correctness issue, a design concern, or a style/preference nitpick? |
-| **Cost** | What is the effort to address? Does the change introduce risk or scope creep? |
+| **Cost**     | What is the effort to address? Does the change introduce risk or scope creep?      |
 
 ### 3. Present analysis for approval
 
 Present all findings to the user before taking action. For each comment, show:
+
 - The comment content and location
 - Your assessment (validity, severity, cost)
 - Your proposed decision (Fixed / Tracked / Won't fix / Not applicable) with reasoning

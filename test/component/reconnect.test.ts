@@ -7,6 +7,7 @@ import type { Client } from "../../src/client.js";
 import type { Frame } from "../../src/frame.js";
 import { RetriesExhaustedError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
+import { FakeClock } from "./fake-clock.js";
 
 // ── test state ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ describe("component: reconnect", () => {
     const restored = new Promise<void>((r) => {
       restoredResolve = r;
     });
+    const clock = new FakeClock();
 
     const t1 = new MockTransport();
     const t2 = new MockTransport();
@@ -46,22 +48,24 @@ describe("component: reconnect", () => {
       },
       autoReconnect: { maxRetries: 5, baseDelay: 10, maxDelay: 50 },
       _dialer: dialer.dial,
+      _clock: clock,
     });
 
-    // Send before drop.
+    // Send before drop — advance past drain timer (5 ms) to flush.
     testClient.send({ event: "before", payload: "drop" });
-    await new Promise((r) => setTimeout(r, 10));
+    await clock.advance(10);
     expect(t1.sent.length).toBe(1);
 
     // Simulate transport drop.
     t1.injectClose(1006, "");
 
-    // Wait for reconnect to succeed.
+    // Advance past the backoff delay (attempt 0, baseDelay 10 ms → ≤10 ms).
+    await clock.advance(60);
     await restored;
 
     // Send after reconnect — goes to t2.
     testClient.send({ event: "after", payload: "reconnect" });
-    await new Promise((r) => setTimeout(r, 10));
+    await clock.advance(10);
     expect(t2.sent.length).toBe(1);
 
     // Echo back from t2.
@@ -78,6 +82,7 @@ describe("component: reconnect", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
+    const clock = new FakeClock();
 
     const t1 = new MockTransport();
     // 2 retries, both fail.
@@ -94,11 +99,14 @@ describe("component: reconnect", () => {
       },
       autoReconnect: { maxRetries: 2, baseDelay: 10, maxDelay: 20 },
       _dialer: dialer.dial,
+      _clock: clock,
     });
 
     // Trigger transport drop to start reconnect loop.
     t1.injectClose(1006, "");
 
+    // Advance past both retry backoff delays (each ≤20 ms).
+    await clock.advance(100);
     await disconnected;
 
     expect(disconnectErr).toBeInstanceOf(RetriesExhaustedError);
@@ -111,6 +119,7 @@ describe("component: reconnect", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
+    const clock = new FakeClock();
 
     const t1 = new MockTransport();
     // Reconnect will never succeed — we close() before it gets a chance.
@@ -141,9 +150,12 @@ describe("component: reconnect", () => {
       },
       autoReconnect: { maxRetries: 10, baseDelay: 100, maxDelay: 500 },
       _dialer: dialer.dial,
+      _clock: clock,
     });
 
     // Trigger transport drop.
+    // The queueMicrotask inside onTransportDrop calls close() before any
+    // backoff timer fires, aborting the reconnect loop immediately.
     t1.injectClose(1006, "");
 
     await disconnected;

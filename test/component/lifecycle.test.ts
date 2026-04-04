@@ -6,6 +6,7 @@ import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
 import { ConnectionClosedError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
+import { FakeClock } from "./fake-clock.js";
 
 // ── test state ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ afterEach(async () => {
  * server-side events.
  */
 async function connectMock(
+  clock: FakeClock,
   opts?: Parameters<typeof connect>[1],
   transport?: MockTransport,
 ): Promise<{ client: Client; transport: MockTransport }> {
@@ -34,6 +36,7 @@ async function connectMock(
   const client = await connect("ws://mock/ws", {
     ...opts,
     _dialer: dialer.dial,
+    _clock: clock,
   });
   testClient = client;
   return { client, transport: t };
@@ -44,7 +47,7 @@ async function connectMock(
 describe("component: lifecycle", () => {
   // Scenario 6: send after close -> ConnectionClosedError
   it("send after close throws ConnectionClosedError", async () => {
-    const { client } = await connectMock();
+    const { client } = await connectMock(new FakeClock());
 
     client.close();
     await client.done;
@@ -58,7 +61,7 @@ describe("component: lifecycle", () => {
   it("close is idempotent", async () => {
     let disconnectCount = 0;
 
-    const { client } = await connectMock({
+    const { client } = await connectMock(new FakeClock(), {
       onDisconnect() {
         disconnectCount++;
       },
@@ -79,8 +82,9 @@ describe("component: lifecycle", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
+    const clock = new FakeClock();
 
-    const { client, transport } = await connectMock({
+    const { client, transport } = await connectMock(clock, {
       onDisconnect() {
         disconnectCount++;
         disconnectResolve();
@@ -94,8 +98,8 @@ describe("component: lifecycle", () => {
 
     await disconnected;
 
-    // Brief window for any erroneous second call.
-    await new Promise((r) => setTimeout(r, 50));
+    // Advance virtual time to ensure no spurious second call.
+    await clock.advance(50);
 
     expect(disconnectCount).toBe(1);
   });

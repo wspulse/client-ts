@@ -1,6 +1,8 @@
+import type { Clock } from "./clock.js";
 import type { Frame } from "./frame.js";
 import type { Codec } from "./codec.js";
 import type { Transport } from "./transport.js";
+import { defaultClock } from "./clock.js";
 import { JSONCodec } from "./codec.js";
 
 /**
@@ -113,6 +115,15 @@ export interface ClientOptions {
    * The default (`undefined`) falls back to the built-in `dialWebSocket`.
    */
   _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
+
+  /**
+   * Custom timer clock for testing.
+   *
+   * @internal Test-only. When provided, all `setTimeout`/`setInterval` calls
+   * in the client are routed through this clock instead of the global timer
+   * functions. The default (`undefined`) falls back to {@link defaultClock}.
+   */
+  _clock?: Clock;
 }
 
 /** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
@@ -161,6 +172,8 @@ export interface ResolvedOptions {
   dialHeaders: Record<string, string>;
   sendBufferSize: number;
   _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
+  /** @internal */
+  _clock: Clock;
 }
 
 /** @internal Shared no-op callback for all unset option callbacks. */
@@ -283,5 +296,6 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     dialHeaders: opts?.dialHeaders ?? {},
     sendBufferSize: opts?.sendBufferSize ?? DEFAULT_SEND_BUFFER_SIZE,
     _dialer: opts?._dialer,
+    _clock: opts?._clock ?? defaultClock,
   };
 }

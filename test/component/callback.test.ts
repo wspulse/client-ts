@@ -6,6 +6,7 @@ import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
 import { ConnectionLostError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
+import { FakeClock } from "./fake-clock.js";
 
 // ── test state ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ afterEach(async () => {
  * server-side events.
  */
 async function connectMock(
+  clock: FakeClock,
   opts?: Parameters<typeof connect>[1],
   transport?: MockTransport,
 ): Promise<{ client: Client; transport: MockTransport }> {
@@ -34,6 +36,7 @@ async function connectMock(
   const client = await connect("ws://mock/ws", {
     ...opts,
     _dialer: dialer.dial,
+    _clock: clock,
   });
   testClient = client;
   return { client, transport: t };
@@ -46,8 +49,9 @@ describe("component: callbacks", () => {
   it("server drop fires onTransportDrop and onDisconnect without reconnect", async () => {
     let transportDropErr: Error | undefined;
     let disconnectErr: Error | null | undefined;
+    const clock = new FakeClock();
 
-    const { transport } = await connectMock({
+    const { transport } = await connectMock(clock, {
       onTransportDrop(err) {
         transportDropErr = err;
       },
@@ -66,8 +70,9 @@ describe("component: callbacks", () => {
   // onDisconnect fires exactly once on close
   it("onDisconnect fires exactly once on close", async () => {
     let disconnectCount = 0;
+    const clock = new FakeClock();
 
-    const { client } = await connectMock({
+    const { client } = await connectMock(clock, {
       onDisconnect() {
         disconnectCount++;
       },
@@ -76,8 +81,8 @@ describe("component: callbacks", () => {
     client.close();
     await client.done;
 
-    // Brief window for any erroneous second call.
-    await new Promise((r) => setTimeout(r, 50));
+    // Advance virtual time to ensure no spurious second call.
+    await clock.advance(50);
 
     expect(disconnectCount).toBe(1);
   });
@@ -87,8 +92,9 @@ describe("component: callbacks", () => {
   // fire exactly once)
   it("onDisconnect fires exactly once on transport drop", async () => {
     let disconnectCount = 0;
+    const clock = new FakeClock();
 
-    const { transport } = await connectMock({
+    const { transport } = await connectMock(clock, {
       onDisconnect() {
         disconnectCount++;
       },
@@ -96,8 +102,8 @@ describe("component: callbacks", () => {
 
     transport.injectClose(1006, "");
 
-    // Brief window for any erroneous second call.
-    await new Promise((r) => setTimeout(r, 50));
+    // Advance virtual time to ensure no spurious second call.
+    await clock.advance(50);
 
     expect(disconnectCount).toBe(1);
   });
@@ -105,15 +111,16 @@ describe("component: callbacks", () => {
   // onTransportRestore does NOT fire on initial connect
   it("onTransportRestore does not fire on initial connect", async () => {
     let restoreCount = 0;
+    const clock = new FakeClock();
 
-    await connectMock({
+    await connectMock(clock, {
       onTransportRestore() {
         restoreCount++;
       },
     });
 
-    // Wait a bit to ensure no spurious call.
-    await new Promise((r) => setTimeout(r, 50));
+    // Advance virtual time to ensure no spurious call.
+    await clock.advance(50);
 
     expect(restoreCount).toBe(0);
   });
@@ -125,8 +132,9 @@ describe("component: callbacks", () => {
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
     });
+    const clock = new FakeClock();
 
-    const { transport } = await connectMock({
+    const { transport } = await connectMock(clock, {
       onDisconnect(err) {
         disconnectErr = err;
         disconnectResolve();

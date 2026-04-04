@@ -6,6 +6,7 @@ import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
 import type { Frame } from "../../src/frame.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
+import { FakeClock } from "./fake-clock.js";
 
 // ── test state ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ afterEach(async () => {
  * server-side events.
  */
 async function connectMock(
+  clock: FakeClock,
   opts?: Parameters<typeof connect>[1],
   transport?: MockTransport,
 ): Promise<{ client: Client; transport: MockTransport }> {
@@ -34,6 +36,7 @@ async function connectMock(
   const client = await connect("ws://mock/ws", {
     ...opts,
     _dialer: dialer.dial,
+    _clock: clock,
   });
   testClient = client;
   return { client, transport: t };
@@ -46,8 +49,9 @@ describe("component: basic", () => {
   it("connects, sends a frame, receives echo, and closes cleanly", async () => {
     const received: Frame[] = [];
     let disconnectErr: Error | null | undefined;
+    const clock = new FakeClock();
 
-    const { client, transport } = await connectMock({
+    const { client, transport } = await connectMock(clock, {
       onMessage(frame) {
         received.push(frame);
       },
@@ -58,8 +62,8 @@ describe("component: basic", () => {
 
     client.send({ event: "msg", payload: { text: "hello" } });
 
-    // Wait for drain timer to flush.
-    await new Promise((r) => setTimeout(r, 10));
+    // Advance past the drain timer (5 ms) to flush the send buffer.
+    await clock.advance(10);
 
     // Verify sent data.
     expect(transport.sent.length).toBe(1);
@@ -83,8 +87,9 @@ describe("component: basic", () => {
   // Frame field round-trip
   it("round-trips all Frame fields (event, payload)", async () => {
     const received: Frame[] = [];
+    const clock = new FakeClock();
 
-    const { client, transport } = await connectMock({
+    const { client, transport } = await connectMock(clock, {
       onMessage(frame) {
         received.push(frame);
       },
@@ -96,8 +101,8 @@ describe("component: basic", () => {
     };
     client.send(outbound);
 
-    // Wait for drain.
-    await new Promise((r) => setTimeout(r, 10));
+    // Advance past the drain timer.
+    await clock.advance(10);
 
     // Echo back.
     transport.injectMessage(transport.sent[0] as string);
@@ -110,15 +115,19 @@ describe("component: basic", () => {
     const dialer = new MockDialer([new Error("connection refused")]);
 
     await expect(
-      connect("ws://mock/ws", { _dialer: dialer.dial }),
+      connect("ws://mock/ws", {
+        _dialer: dialer.dial,
+        _clock: new FakeClock(),
+      }),
     ).rejects.toThrow("connection refused");
   });
 
   // Message ordering
   it("sends multiple frames and receives them in order", async () => {
     const received: Frame[] = [];
+    const clock = new FakeClock();
 
-    const { client, transport } = await connectMock({
+    const { client, transport } = await connectMock(clock, {
       onMessage(frame) {
         received.push(frame);
       },
@@ -129,8 +138,8 @@ describe("component: basic", () => {
       client.send({ event: "seq", payload: { i } });
     }
 
-    // Wait for drain.
-    await new Promise((r) => setTimeout(r, 10));
+    // Advance past the drain timer.
+    await clock.advance(10);
 
     expect(transport.sent.length).toBe(count);
 
@@ -151,12 +160,14 @@ describe("component: basic", () => {
   it("passes URL with query params to dialer", async () => {
     let dialedUrl = "";
     const t = new MockTransport();
+    const clock = new FakeClock();
 
     testClient = await connect("ws://mock/ws?room=myroom", {
       _dialer: async (url) => {
         dialedUrl = url;
         return t;
       },
+      _clock: clock,
     });
 
     expect(dialedUrl).toBe("ws://mock/ws?room=myroom");
