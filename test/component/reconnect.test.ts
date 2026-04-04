@@ -204,4 +204,73 @@ describe("component: reconnect", () => {
     // close() during reconnect must not fire onTransportDrop a second time.
     expect(transportDropCount).toBe(1);
   });
+
+  // Scenario 7: close() called synchronously inside onTransportDrop -> fires exactly once
+  it("synchronous close() inside onTransportDrop fires onTransportDrop exactly once", async () => {
+    let transportDropCount = 0;
+    const clock = new FakeClock();
+
+    const t1 = new MockTransport();
+    const dialer = new MockDialer([t1]);
+
+    testClient = await connect("ws://mock/ws", {
+      onTransportDrop() {
+        transportDropCount++;
+        // Synchronous close() inside the callback — reconnecting is not yet
+        // set when this fires, so the bug would double-fire onTransportDrop.
+        testClient?.close();
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 100, maxDelay: 500 },
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+
+    t1.injectClose(1006, "");
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await testClient!.done;
+
+    expect(transportDropCount).toBe(1);
+  });
+
+  // Scenario 8: close() after successful reconnect fires onTransportDrop(null)
+  it("close() after successful reconnect fires onTransportDrop(null)", async () => {
+    const drops: (Error | null)[] = [];
+    let restoredResolve: () => void = () => {};
+    const restored = new Promise<void>((r) => {
+      restoredResolve = r;
+    });
+    const clock = new FakeClock();
+
+    const t1 = new MockTransport();
+    const t2 = new MockTransport();
+    const dialer = new MockDialer([t1, t2]);
+
+    testClient = await connect("ws://mock/ws", {
+      onTransportDrop(err) {
+        drops.push(err);
+      },
+      onTransportRestore() {
+        restoredResolve();
+      },
+      autoReconnect: { maxRetries: 5, baseDelay: 10, maxDelay: 50 },
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+
+    // Drop first transport — reconnecting flag set.
+    t1.injectClose(1006, "");
+    await clock.advance(60);
+    await restored;
+
+    // Now connected on t2. reconnecting should be false again.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    testClient!.close();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await testClient!.done;
+
+    // First drop: Error. Clean close after reconnect: null.
+    expect(drops).toHaveLength(2);
+    expect(drops[0]).toBeInstanceOf(Error);
+    expect(drops[1]).toBeNull();
+  });
 });

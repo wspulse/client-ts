@@ -357,6 +357,11 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
+    // Set reconnecting before firing the callback so that a synchronous
+    // close() call inside onTransportDrop sees the correct state.
+    if (this.opts.autoReconnect) {
+      this.reconnecting = true;
+    }
     this.opts.onTransportDrop(dropErr);
 
     if (this.opts.autoReconnect) {
@@ -382,7 +387,6 @@ class WspulseClient implements Client {
     >;
     const signal = this.abortController.signal;
     let attempt = 0;
-    this.reconnecting = true;
 
     while (!this.closed) {
       // Check max retries.
@@ -424,6 +428,7 @@ class WspulseClient implements Client {
 
       // Fire onTransportRestore outside the dial try/catch so a throwing
       // callback does not get misinterpreted as a dial failure.
+      this.reconnecting = false;
       try {
         this.opts.onTransportRestore();
       } catch (err) {
