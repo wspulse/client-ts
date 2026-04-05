@@ -39,6 +39,7 @@ describe("resolveOptions", () => {
     expect(() => opts.onDisconnect(new Error("err"))).not.toThrow();
     expect(() => opts.onTransportRestore()).not.toThrow();
     expect(() => opts.onTransportDrop(new Error("drop"))).not.toThrow();
+    expect(() => opts.onTransportDrop(null)).not.toThrow();
   });
 
   it("uses user-provided callbacks", () => {

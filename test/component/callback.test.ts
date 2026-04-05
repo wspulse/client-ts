@@ -47,7 +47,7 @@ async function connectMock(
 describe("component: callbacks", () => {
   // Scenario 2: Server drop -> onTransportDrop + onDisconnect (no reconnect)
   it("server drop fires onTransportDrop and onDisconnect without reconnect", async () => {
-    let transportDropErr: Error | undefined;
+    let transportDropErr: Error | null | undefined;
     let disconnectErr: Error | null | undefined;
     const clock = new FakeClock();
 
@@ -147,5 +147,27 @@ describe("component: callbacks", () => {
 
     // Server-initiated close -> client sees an Error instance.
     expect(disconnectErr).toBeInstanceOf(Error);
+  });
+
+  // Clean close fires onTransportDrop(null) before onDisconnect(null)
+  it("clean close fires onTransportDrop(null) before onDisconnect(null)", async () => {
+    const order: string[] = [];
+    const clock = new FakeClock();
+
+    const { client } = await connectMock(clock, {
+      onTransportDrop(err) {
+        expect(err).toBeNull();
+        order.push("onTransportDrop");
+      },
+      onDisconnect(err) {
+        expect(err).toBeNull();
+        order.push("onDisconnect");
+      },
+    });
+
+    client.close();
+    await client.done;
+
+    expect(order).toEqual(["onTransportDrop", "onDisconnect"]);
   });
 });

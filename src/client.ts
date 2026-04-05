@@ -202,6 +202,9 @@ class WspulseClient implements Client {
   /** Whether onDisconnect has been called (exactly-once guard). */
   private disconnectFired = false;
 
+  /** Whether a transport drop is being handled. Suppresses onTransportDrop(null) during shutdown. */
+  private reconnecting = false;
+
   /** Pong deadline timer — fires when server stops responding. */
   private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -354,7 +357,15 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
-    this.opts.onTransportDrop(dropErr);
+    // Set reconnecting before firing the callback so that a synchronous
+    // close() call inside onTransportDrop sees the correct state regardless
+    // of whether auto-reconnect is enabled.
+    this.reconnecting = true;
+    try {
+      this.opts.onTransportDrop(dropErr);
+    } catch (cbErr) {
+      console.warn("wspulse/client: onTransportDrop threw", cbErr);
+    }
 
     if (this.opts.autoReconnect) {
       void this.reconnectLoop();
@@ -420,6 +431,7 @@ class WspulseClient implements Client {
 
       // Fire onTransportRestore outside the dial try/catch so a throwing
       // callback does not get misinterpreted as a dial failure.
+      this.reconnecting = false;
       try {
         this.opts.onTransportRestore();
       } catch (err) {
@@ -664,10 +676,25 @@ class WspulseClient implements Client {
       // Already closed — ignore.
     }
 
+    // On clean close while NOT reconnecting, fire onTransportDrop(null) before
+    // onDisconnect. When reconnecting, handleTransportDrop already fired — skip.
+    if (err === null && !this.reconnecting) {
+      try {
+        this.opts.onTransportDrop(null);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onTransportDrop threw", cbErr);
+      }
+    }
+    this.reconnecting = false;
+
     // Fire onDisconnect exactly once.
     if (!this.disconnectFired) {
       this.disconnectFired = true;
-      this.opts.onDisconnect(err);
+      try {
+        this.opts.onDisconnect(err);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onDisconnect threw", cbErr);
+      }
     }
 
     // Resolve the done Promise.

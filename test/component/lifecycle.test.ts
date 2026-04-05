@@ -75,9 +75,10 @@ describe("component: lifecycle", () => {
     expect(disconnectCount).toBe(1);
   });
 
-  // Scenario 9: close() racing with transport drop -> onDisconnect exactly once
-  it("close() racing with transport drop fires onDisconnect exactly once", async () => {
+  // Scenario 9: close() racing with transport drop -> both callbacks exactly once
+  it("close() racing with transport drop fires onTransportDrop and onDisconnect exactly once", async () => {
     let disconnectCount = 0;
+    let transportDropCount = 0;
     let disconnectResolve: () => void = () => {};
     const disconnected = new Promise<void>((r) => {
       disconnectResolve = r;
@@ -85,6 +86,9 @@ describe("component: lifecycle", () => {
     const clock = new FakeClock();
 
     const { client, transport } = await connectMock(clock, {
+      onTransportDrop() {
+        transportDropCount++;
+      },
       onDisconnect() {
         disconnectCount++;
         disconnectResolve();
@@ -101,6 +105,7 @@ describe("component: lifecycle", () => {
     // Advance virtual time to ensure no spurious second call.
     await clock.advance(50);
 
+    expect(transportDropCount).toBe(1);
     expect(disconnectCount).toBe(1);
   });
 });
