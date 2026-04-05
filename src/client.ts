@@ -358,11 +358,14 @@ class WspulseClient implements Client {
     this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
     // Set reconnecting before firing the callback so that a synchronous
-    // close() call inside onTransportDrop sees the correct state.
-    if (this.opts.autoReconnect) {
-      this.reconnecting = true;
+    // close() call inside onTransportDrop sees the correct state regardless
+    // of whether auto-reconnect is enabled.
+    this.reconnecting = true;
+    try {
+      this.opts.onTransportDrop(dropErr);
+    } catch (cbErr) {
+      console.warn("wspulse/client: onTransportDrop threw", cbErr);
     }
-    this.opts.onTransportDrop(dropErr);
 
     if (this.opts.autoReconnect) {
       void this.reconnectLoop();

@@ -298,4 +298,28 @@ describe("component: reconnect", () => {
 
     expect(disconnectFired).toBe(true);
   });
+
+  // Scenario 10: no autoReconnect + close() inside onTransportDrop fires onTransportDrop exactly once
+  it("no autoReconnect: close() inside onTransportDrop does not double-fire", async () => {
+    const drops: (Error | null)[] = [];
+
+    const t1 = new MockTransport();
+    const dialer = new MockDialer([t1]);
+
+    testClient = await connect("ws://mock/ws", {
+      onTransportDrop(err) {
+        drops.push(err);
+        // Synchronous close() — must not trigger onTransportDrop(null) again.
+        testClient?.close();
+      },
+      _dialer: dialer.dial,
+    });
+
+    t1.injectClose(1006, "");
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await testClient!.done;
+
+    expect(drops).toHaveLength(1);
+    expect(drops[0]).toBeInstanceOf(Error);
+  });
 });
