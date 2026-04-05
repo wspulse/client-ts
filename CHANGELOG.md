@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Changed
-
-- **BREAKING**: `onTransportDrop` callback signature changed from `(err: Error) => void` to `(err: Error | null) => void`. The callback now fires on clean `close()` calls with `err = null`, in addition to unexpected transport drops. When `close()` is called while reconnecting, the callback does not fire again.
-
 ---
 
 ## [0.5.0] - 2026-04-04
@@ -23,6 +19,7 @@
 
 ### Changed
 
+- **BREAKING**: `onTransportDrop` callback signature changed from `(err: Error) => void` to `(err: Error | null) => void`. The callback now fires on clean `close()` calls with `err = null`, in addition to unexpected transport drops. When `close()` is called while reconnecting, the callback does not fire again.
 - `test-integration` CI job removed; component tests run as part of `lint-test`
 
 ### Removed
