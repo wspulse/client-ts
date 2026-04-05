@@ -1,4 +1,4 @@
-.PHONY: help build test test-integration test-cover lint fmt check clean
+.PHONY: help build test test-cover lint fmt check clean
 
 # Default target
 help: ## Show available commands
@@ -11,9 +11,6 @@ build: ## Compile TypeScript to dist/ (ESM + CJS)
 test: ## Run unit tests
 	@npx vitest run
 
-test-integration: ## Run integration tests (requires Go)
-	@npx vitest run -c vitest.integration.config.ts
-
 test-cover: ## Run tests with coverage report
 	@npx vitest run --coverage
 
@@ -24,19 +21,13 @@ lint: ## Run ESLint and type-check
 fmt: ## Format source files with Prettier
 	@npx prettier --write "src/**/*.ts" "test/**/*.ts"
 
-check: ## Run fmt-check, lint, unit tests (set INCLUDE_INTEGRATION=1 to also run integration tests)
+check: ## Run fmt-check, lint, and unit tests
 	@echo "── fmt ──"
 	@npx prettier --check "src/**/*.ts" "test/**/*.ts"
 	@echo "── lint ──"
 	@$(MAKE) --no-print-directory lint
 	@echo "── test ──"
 	@$(MAKE) --no-print-directory test
-	@if [ "$$INCLUDE_INTEGRATION" = "1" ]; then \
-		echo "── test-integration ──"; \
-		$(MAKE) --no-print-directory test-integration; \
-	else \
-		echo "── test-integration skipped (set INCLUDE_INTEGRATION=1 to enable) ──"; \
-	fi
 	@echo "── all passed ──"
 
 clean: ## Remove build artifacts and test cache

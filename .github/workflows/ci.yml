@@ -1,21 +1,32 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main, develop, 'feat/**', 'feature/**', 'refactor/**', 'bugfix/**', 'fix/**', 'chore/**']
+    branches:
+      [
+        main,
+        develop,
+        "feat/**",
+        "feature/**",
+        "refactor/**",
+        "bugfix/**",
+        "fix/**",
+        "chore/**",
+      ]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.github/instructions/**'
+      - "**.md"
+      - "LICENSE"
+      - ".github/instructions/**"
   pull_request:
     branches: [main, develop]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.github/instructions/**'
+      - "**.md"
+      - "LICENSE"
+      - ".github/instructions/**"
 
 jobs:
-  check:
+  lint-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -42,64 +53,18 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
-      
-      - name: Run unit tests
+
+      - name: Run tests
         run: npx vitest run
 
-  # Integration tests require Go and the wspulse/core + wspulse/server repos
-  # as siblings. Only runs on pushes to main — this is the gate before tagging.
-  test-integration:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [check]
-    strategy:
-      matrix:
-        node-version: [20, 22]
+    if: always()
+    needs: [lint-test]
     steps:
-      - name: Check out client-ts
-        uses: actions/checkout@v6
-        with:
-          path: client-ts
-
-      - name: Check out core
-        uses: actions/checkout@v6
-        with:
-          repository: wspulse/core
-          path: core
-
-      - name: Check out server
-        uses: actions/checkout@v6
-        with:
-          repository: wspulse/server
-          path: server
-
-      - name: Check out testserver
-        uses: actions/checkout@v6
-        with:
-          repository: wspulse/testserver
-          path: testserver
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: 'stable'
-          cache-dependency-path: testserver/go.sum
-
-      - name: Set up Go workspace
-        run: go work init ./testserver ./core ./server
-
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: client-ts/package-lock.json
-
-      - name: Install dependencies
-        working-directory: client-ts
-        run: npm ci
-
-      - name: Run integration tests
-        working-directory: client-ts
-        run: npx vitest run -c vitest.integration.config.ts
+      - name: Verify lint-test passed
+        run: |
+          if [[ "${{ needs.lint-test.result }}" != "success" ]]; then
+            echo "lint-test failed"
+            exit 1
+          fi

@@ -1,4 +1,6 @@
+import type { Clock } from "./clock.js";
 import type { Frame } from "./frame.js";
+import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
 import { resolveOptions } from "./options.js";
 import {
@@ -39,34 +41,26 @@ export interface Client {
   readonly done: Promise<void>;
 }
 
-/** Internal send buffer capacity. Matches client-go (256). */
-const SEND_BUFFER_SIZE = 256;
-
-// ── WebSocket abstraction ─────────────────────────────────────────────────────
+// ── URL scheme normalization ─────────────────────────────────────────────────
 
 /**
- * Minimal WebSocket interface consumed by the client.
+ * Convert `http://` and `https://` URLs to their WebSocket equivalents
+ * (`ws://` and `wss://`). All other URLs pass through unchanged — the
+ * underlying WebSocket implementation (`ws` on Node.js, native
+ * `WebSocket` in browsers) already validates schemes at connection
+ * time and surfaces catchable errors, so we avoid duplicating that.
  *
- * Browser `WebSocket` and the `ws` package both satisfy this shape.
- * This decouples the client from any specific WebSocket implementation.
+ * @internal Exported for unit testing only.
  */
-interface WS {
-  readonly readyState: number;
-  onmessage: ((ev: { data: unknown }) => void) | null;
-  onclose: ((ev: { code: number; reason: string }) => void) | null;
-  onerror: ((ev: unknown) => void) | null;
-  onopen: ((ev: unknown) => void) | null;
-  send(data: string | ArrayBuffer | Uint8Array | Blob): void;
-  close(code?: number, reason?: string): void;
-  /** Node.js `ws` library: register event listener (ping, pong, etc.). */
-  on?(event: string, listener: (...args: unknown[]) => void): void;
-  /** Node.js `ws` library: remove event listener. */
-  removeListener?(event: string, listener: (...args: unknown[]) => void): void;
-  /** Node.js `ws` library: send a WebSocket Ping frame. */
-  ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
-  /** Node.js `ws` library: forcefully destroy the socket without close handshake. */
-  terminate?(): void;
+export function normalizeScheme(url: string): string {
+  const lower = url.slice(0, 8).toLowerCase();
+  if (lower.startsWith("https://"))
+    return "wss://" + url.slice("https://".length);
+  if (lower.startsWith("http://")) return "ws://" + url.slice("http://".length);
+  return url;
 }
+
+// ── WebSocket dialer ─────────────────────────────────────────────────────────
 
 /** WebSocket readyState constants. */
 const WS_OPEN = 1;
@@ -80,15 +74,20 @@ const WS_OPEN = 1;
  * Uses dynamic `import("ws")` so the function works in both Node.js ESM and
  * CJS environments without relying on `require`, which is unavailable in ESM.
  */
-async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
+async function dialWebSocket(
+  url: string,
+  opts: ResolvedOptions,
+): Promise<Transport> {
   // Prefer 'ws' library when available (Node.js) — it supports custom
   // headers and has consistent binary/text handling across Node versions.
   // Dynamic import works in both Node.js ESM and CJS; falls back to the
   // native browser WebSocket API when 'ws' is not installed.
-  let wsImpl: { new (url: string, opts?: unknown): WS } | null = null;
+  let wsImpl: { new (url: string, opts?: unknown): Transport } | null = null;
   try {
     const mod = await import("ws");
-    wsImpl = (mod.default ?? mod) as { new (url: string, opts?: unknown): WS };
+    wsImpl = (mod.default ?? mod) as {
+      new (url: string, opts?: unknown): Transport;
+    };
   } catch {
     // 'ws' not installed — will use globalThis.WebSocket below.
   }
@@ -97,8 +96,8 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
   const wsOpts: Record<string, unknown> = {};
   if (hasHeaders) wsOpts.headers = opts.dialHeaders;
 
-  return new Promise<WS>((resolve, reject) => {
-    let ws: WS;
+  return new Promise<Transport>((resolve, reject) => {
+    let ws: Transport;
 
     if (wsImpl !== null) {
       ws = new wsImpl(url, Object.keys(wsOpts).length > 0 ? wsOpts : undefined);
@@ -112,7 +111,7 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
         );
         return;
       }
-      ws = new globalThis.WebSocket(url) as unknown as WS;
+      ws = new globalThis.WebSocket(url) as unknown as Transport;
     }
 
     ws.onopen = () => {
@@ -150,7 +149,9 @@ async function dialWebSocket(url: string, opts: ResolvedOptions): Promise<WS> {
  * of `autoReconnect`. No callbacks fire and no Client is created.
  * `autoReconnect` only kicks in after a successful initial connection.
  *
- * @param url  WebSocket URL (e.g. `wss://host/ws`)
+ * @param url  WebSocket URL (e.g. `wss://host/ws`). Also accepts `http://`
+ *              and `https://` URLs, which are auto-converted to `ws://` and
+ *              `wss://` respectively.
  * @param opts Client options (callbacks, reconnect config, etc.)
  * @returns A {@link Client} in CONNECTED state.
  *
@@ -160,8 +161,10 @@ export async function connect(
   url: string,
   opts?: ClientOptions,
 ): Promise<Client> {
+  url = normalizeScheme(url);
   const resolved = resolveOptions(opts);
-  const ws = await dialWebSocket(url, resolved);
+  const dial = resolved._dialer ?? dialWebSocket;
+  const ws = await dial(url, resolved);
   return new WspulseClient(url, resolved, ws);
 }
 
@@ -176,7 +179,7 @@ export async function connect(
 class WspulseClient implements Client {
   private readonly url: string;
   private readonly opts: ResolvedOptions;
-  private ws: WS;
+  private ws: Transport;
 
   /** Bounded send buffer (throws when full). */
   private readonly sendBuffer: (string | Uint8Array)[] = [];
@@ -199,6 +202,9 @@ class WspulseClient implements Client {
   /** Whether onDisconnect has been called (exactly-once guard). */
   private disconnectFired = false;
 
+  /** Whether a transport drop is being handled. Suppresses onTransportDrop(null) during shutdown. */
+  private reconnecting = false;
+
   /** Pong deadline timer — fires when server stops responding. */
   private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -209,12 +215,16 @@ class WspulseClient implements Client {
   private pongHandler: (() => void) | null = null;
 
   /** WebSocket instance the pong handler is attached to (for removeListener). */
-  private pongHandlerWs: WS | null = null;
+  private pongHandlerWs: Transport | null = null;
 
-  constructor(url: string, opts: ResolvedOptions, ws: WS) {
+  /** Timer clock — replaced in tests for deterministic behaviour. @internal */
+  private readonly clock: Clock;
+
+  constructor(url: string, opts: ResolvedOptions, ws: Transport) {
     this.url = url;
     this.opts = opts;
     this.ws = ws;
+    this.clock = opts._clock;
     this.abortController = new AbortController();
 
     let resolve!: () => void;
@@ -244,7 +254,7 @@ class WspulseClient implements Client {
       throw new ConnectionClosedError();
     }
     const data = this.opts.codec.encode(frame);
-    if (this.sendBuffer.length >= SEND_BUFFER_SIZE) {
+    if (this.sendBuffer.length >= this.opts.sendBufferSize) {
       throw new SendBufferFullError();
     }
     this.sendBuffer.push(data);
@@ -266,7 +276,7 @@ class WspulseClient implements Client {
    * Attach message/close/error listeners to a WebSocket instance.
    * Called on initial connect and after each successful reconnect.
    */
-  private attachListeners(ws: WS): void {
+  private attachListeners(ws: Transport): void {
     ws.onmessage = (ev) => {
       if (this.closed || this.disconnectFired) return;
 
@@ -347,7 +357,15 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
-    this.opts.onTransportDrop(dropErr);
+    // Set reconnecting before firing the callback so that a synchronous
+    // close() call inside onTransportDrop sees the correct state regardless
+    // of whether auto-reconnect is enabled.
+    this.reconnecting = true;
+    try {
+      this.opts.onTransportDrop(dropErr);
+    } catch (cbErr) {
+      console.warn("wspulse/client: onTransportDrop threw", cbErr);
+    }
 
     if (this.opts.autoReconnect) {
       void this.reconnectLoop();
@@ -386,9 +404,10 @@ class WspulseClient implements Client {
       if (aborted || this.closed) return;
 
       // Attempt to dial.
-      let newWs: WS;
+      let newWs: Transport;
       try {
-        newWs = await dialWebSocket(this.url, this.opts);
+        const dial = this.opts._dialer ?? dialWebSocket;
+        newWs = await dial(this.url, this.opts);
       } catch {
         // Dial failed — increment attempt and retry.
         attempt++;
@@ -412,6 +431,7 @@ class WspulseClient implements Client {
 
       // Fire onTransportRestore outside the dial try/catch so a throwing
       // callback does not get misinterpreted as a dial failure.
+      this.reconnecting = false;
       try {
         this.opts.onTransportRestore();
       } catch (err) {
@@ -430,12 +450,12 @@ class WspulseClient implements Client {
   private abortableDelay(ms: number, signal: AbortSignal): Promise<boolean> {
     if (signal.aborted) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
+      const timer = this.clock.setTimeout(() => {
         signal.removeEventListener("abort", onAbort);
         resolve(false);
       }, ms);
       const onAbort = () => {
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         resolve(true);
       };
       signal.addEventListener("abort", onAbort, { once: true });
@@ -450,7 +470,7 @@ class WspulseClient implements Client {
    */
   private startDrain(): void {
     if (this.drainTimer !== null) return;
-    this.drainTimer = setTimeout(() => {
+    this.drainTimer = this.clock.setTimeout(() => {
       this.drainTimer = null;
       this.flushSendBuffer();
     }, 5);
@@ -459,7 +479,7 @@ class WspulseClient implements Client {
   /** Stop the drain timer. */
   private stopDrain(): void {
     if (this.drainTimer !== null) {
-      clearTimeout(this.drainTimer);
+      this.clock.clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
   }
@@ -477,7 +497,7 @@ class WspulseClient implements Client {
    * There is no programmatic access to ping/pong frames, so heartbeat
    * monitoring is a no-op in browser environments.
    */
-  private startHeartbeat(ws: WS): void {
+  private startHeartbeat(ws: Transport): void {
     // Only meaningful when ws supports .on() and .ping() (Node.js ws lib).
     if (typeof ws.on !== "function" || typeof ws.ping !== "function") return;
 
@@ -486,7 +506,7 @@ class WspulseClient implements Client {
     // Reset (or start) the pong deadline timer.
     const resetPongDeadline = () => {
       this.clearPongDeadline();
-      this.pongDeadlineTimer = setTimeout(() => {
+      this.pongDeadlineTimer = this.clock.setTimeout(() => {
         // Server failed to respond — forcefully destroy the socket so the
         // close event fires immediately without waiting for a close handshake.
         if (typeof ws.terminate === "function") {
@@ -514,7 +534,7 @@ class WspulseClient implements Client {
     resetPongDeadline();
 
     // Periodically send Ping frames.
-    this.pingTimer = setInterval(() => {
+    this.pingTimer = this.clock.setInterval(() => {
       if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
         ws.ping();
       }
@@ -525,7 +545,7 @@ class WspulseClient implements Client {
   private stopHeartbeat(): void {
     this.clearPongDeadline();
     if (this.pingTimer !== null) {
-      clearInterval(this.pingTimer);
+      this.clock.clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
     // Remove pong listener from the previous WebSocket to prevent leaks.
@@ -543,7 +563,7 @@ class WspulseClient implements Client {
   /** Clear the pong deadline timer only. */
   private clearPongDeadline(): void {
     if (this.pongDeadlineTimer !== null) {
-      clearTimeout(this.pongDeadlineTimer);
+      this.clock.clearTimeout(this.pongDeadlineTimer);
       this.pongDeadlineTimer = null;
     }
   }
@@ -596,7 +616,7 @@ class WspulseClient implements Client {
     // data has been handed off to the kernel. If the timer fires first the
     // socket is closed, which will abort any in-progress send.
     let settled = false;
-    const timer = setTimeout(() => {
+    const timer = this.clock.setTimeout(() => {
       if (settled) return;
       settled = true;
       try {
@@ -610,7 +630,7 @@ class WspulseClient implements Client {
       (err) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         if (err) {
           try {
             ws.close(1001, "write error");
@@ -656,10 +676,25 @@ class WspulseClient implements Client {
       // Already closed — ignore.
     }
 
+    // On clean close while NOT reconnecting, fire onTransportDrop(null) before
+    // onDisconnect. When reconnecting, handleTransportDrop already fired — skip.
+    if (err === null && !this.reconnecting) {
+      try {
+        this.opts.onTransportDrop(null);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onTransportDrop threw", cbErr);
+      }
+    }
+    this.reconnecting = false;
+
     // Fire onDisconnect exactly once.
     if (!this.disconnectFired) {
       this.disconnectFired = true;
-      this.opts.onDisconnect(err);
+      try {
+        this.opts.onDisconnect(err);
+      } catch (cbErr) {
+        console.warn("wspulse/client: onDisconnect threw", cbErr);
+      }
     }
 
     // Resolve the done Promise.

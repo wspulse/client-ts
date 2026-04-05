@@ -7,9 +7,10 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 ## Architecture
 
 - **`src/client.ts`** — `connect()` entry point and internal `WspulseClient` class. Manages WebSocket lifecycle, read loop, write loop, and reconnect loop.
+- **`src/transport.ts`** — `Transport` interface (minimal WebSocket shape). Extracted so tests can provide mock implementations via `_dialer`.
 - **`src/options.ts`** — `ClientOptions` interface and `resolveOptions()` to merge with defaults.
 - **`src/codec.ts`** — `Codec` interface and `JSONCodec` default implementation. Mirrors Go `core` module's `Codec`.
-- **`src/frame.ts`** — `Frame` interface (id, event, payload — all optional).
+- **`src/frame.ts`** — `Frame` interface (event, payload — all optional).
 - **`src/errors.ts`** — Error classes: `ConnectionClosedError`, `RetriesExhaustedError`, `ConnectionLostError`.
 - **`src/backoff.ts`** — `backoff()` function for exponential delay with equal jitter (matches Go implementation).
 - **`src/index.ts`** — Public re-exports.
@@ -17,13 +18,13 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 ## Development Workflow
 
 ```bash
-make fmt        # format with Prettier
-make lint       # ESLint + tsc --noEmit
-make test       # vitest run
-make check      # prettier --check + lint + test (pre-commit gate)
-make build      # tsup → dist/
-make test-cover # vitest with v8 coverage
-make clean      # remove dist/ and coverage/
+make fmt              # format with Prettier
+make lint             # ESLint + tsc --noEmit
+make test             # vitest run (unit + component tests)
+make check            # prettier --check + lint + test (pre-commit gate)
+make build            # tsup -> dist/
+make test-cover       # vitest with v8 coverage
+make clean            # remove dist/ and coverage/
 ```
 
 ## Conventions
@@ -43,6 +44,7 @@ make clean      # remove dist/ and coverage/
     - `fix/<name>` — quick fix (e.g. config, docs, CI)
     - `chore/<name>` — maintenance, CI/CD, dependencies, docs
     - CI triggers on all branch prefixes above and on PRs targeting `main`/`develop`. Tags do **not** trigger CI (the tag is created after CI already passed). Open a PR into `develop`; `develop` requires status checks to pass.
+  - **Pull request description**: must follow the repo's `.github/PULL_REQUEST_TEMPLATE.md`. Fill in every section (Summary, Changes, Checklist). Do not invent custom formats.
 - **Tests**: in `test/` directory. Cover happy path and at least one error path. Required for new public functions.
   - **Test-first for bug fixes**: **mandatory** — see Critical Rule 8 for the required step-by-step procedure. Do not touch production code without a prior failing test.
 - **API compatibility**:
@@ -52,6 +54,18 @@ make clean      # remove dist/ and coverage/
 - **Dependency policy**: zero runtime dependencies for browser; `ws` as peer dep for Node.js only. Justify any new dependency in the PR description.
 - **Platform differences**: some options are Node.js-only. The most critical case: browsers prohibit custom headers on WebSocket handshake requests — the `WebSocket` API provides no mechanism to attach arbitrary headers to the `Upgrade` request. `dialHeaders` must be silently ignored in browser environments. Document any other Node.js-only option with a JSDoc note and ensure the implementation guards against it gracefully in browsers.
 - **File encoding**: all files must be UTF-8 without BOM. Do not use any other encoding.
+
+## Feature Workflow
+
+All new features and design changes follow this process — do not skip steps:
+
+1. **Plan** — write idea to `doc/local/plan/<name>.md` (local only, git-ignored)
+2. **Quick discussion** — feasibility + value check
+3. **Go / No-go** — kill or proceed
+4. **Layer check** — transport layer (wspulse implements) or application layer (write docs recipe instead)
+5. **Issue** — repo-scoped work: open issue on this repo. Cross-repo/global work: open issue on [`wspulse/.github`](https://github.com/wspulse/.github). Include summary, scope, impact assessment, priority label + milestone
+6. **Design discussion** — API surface, cross-SDK parity, contract/protocol updates, edge cases
+7. **Task** — feature branch from `develop`, implement with tests, CHANGELOG entry, PR following template. **Repo-scoped**: link PR to the issue. **Global**: each PR mentions the global issue (e.g., `wspulse/.github#N`); after opening a PR, comment on the global issue with the PR link
 
 ## Critical Rules
 
@@ -71,10 +85,9 @@ make clean      # remove dist/ and coverage/
    6. If you are about to edit production code and no failing test exists yet — stop and go back to step 1.
 9. **STOP — before every commit, verify this checklist:**
    1. Run `make check` (fmt → lint → test) and confirm it passes. Skip if the commit contains only non-code changes (e.g. documentation, comments, Markdown).
-   2. Run GitHub Copilot code review (`github.copilot.chat.review.changes`) on the working-tree diff and resolve every comment before proceeding.
-   3. Commit message follows [commit-message-instructions.md](instructions/commit-message-instructions.md): correct type, subject ≤ 50 chars, numbered body items stating reason → change.
-   4. This commit contains exactly one logical change — no unrelated modifications.
-   5. If any item fails — fix it before committing.
+   2. Commit message follows [commit-message-instructions.md](instructions/commit-message-instructions.md): correct type, subject ≤ 50 chars, numbered body items stating reason → change.
+   3. This commit contains exactly one logical change — no unrelated modifications.
+   4. If any item fails — fix it before committing.
 10. **Accuracy** — if you have questions or need clarification, ask the user. Do not make assumptions without confirming.
 11. **Language consistency** — when the user writes in Traditional Chinese, respond in Traditional Chinese; otherwise respond in English.
 12. **Throw policy — fail early, never at steady-state runtime** — Enforce errors at the earliest possible phase:
@@ -94,15 +107,16 @@ Pull all comments that have not received a reply from the PR author. Bot-generat
 
 Evaluate against:
 
-| Criterion | Question |
-|-----------|----------|
-| **Validity** | Is the observation correct? Is the suggestion reasonable? |
+| Criterion    | Question                                                                           |
+| ------------ | ---------------------------------------------------------------------------------- |
+| **Validity** | Is the observation correct? Is the suggestion reasonable?                          |
 | **Severity** | Is it a bug, a correctness issue, a design concern, or a style/preference nitpick? |
-| **Cost** | What is the effort to address? Does the change introduce risk or scope creep? |
+| **Cost**     | What is the effort to address? Does the change introduce risk or scope creep?      |
 
 ### 3. Present analysis for approval
 
 Present all findings to the user before taking action. For each comment, show:
+
 - The comment content and location
 - Your assessment (validity, severity, cost)
 - Your proposed decision (Fixed / Tracked / Won't fix / Not applicable) with reasoning

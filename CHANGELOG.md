@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+---
+
+## [0.5.0] - 2026-04-04
+
+### Added
+
+- `_clock` option in `ClientOptions` for injecting a deterministic timer implementation in tests (test-only, `@internal`)
+- `Clock` interface in `src/clock.ts` — abstracts `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`
+- `FakeClock` in `test/component/fake-clock.ts` — async `advance(ms)` drives virtual time for deterministic component tests
+- `connect()` auto-converts `http://` to `ws://` and `https://` to `wss://` (case-insensitive per RFC 3986). Other schemes are passed through to the underlying WebSocket library.
+- `sendBufferSize` option — configurable outbound buffer capacity [1, 4096], default 256
+- `Transport` interface exported from `src/transport.ts` for mock implementations
+- `_dialer` option in `ClientOptions` for injecting test transport (test-only)
+- 19 reliable component tests (`test/component/*.test.ts`) using mock transport — zero network I/O
+
+### Changed
+
+- **BREAKING**: `onTransportDrop` callback signature changed from `(err: Error) => void` to `(err: Error | null) => void`. The callback now fires on clean `close()` calls with `err = null`, in addition to unexpected transport drops. When `close()` is called while reconnecting, the callback does not fire again.
+- `test-integration` CI job removed; component tests run as part of `lint-test`
+
+### Removed
+
+- **BREAKING**: `Frame.id` field removed — transport layer does not use it. Applications needing message IDs should use payload.
+
+---
+
 ## [0.4.0] - 2026-03-24
 
 ### Added

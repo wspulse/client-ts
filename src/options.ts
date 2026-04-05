@@ -1,5 +1,8 @@
+import type { Clock } from "./clock.js";
 import type { Frame } from "./frame.js";
 import type { Codec } from "./codec.js";
+import type { Transport } from "./transport.js";
+import { defaultClock } from "./clock.js";
 import { JSONCodec } from "./codec.js";
 
 /**
@@ -66,10 +69,12 @@ export interface ClientOptions {
   onTransportRestore?: () => void;
 
   /**
-   * Called each time the underlying WebSocket connection drops unexpectedly,
-   * before any reconnect attempt. Does not fire when `close()` is called.
+   * Called each time the underlying WebSocket connection closes, before any
+   * reconnect attempt. Fires with `null` on a clean `close()` call, or with
+   * the transport error on unexpected drops. When `close()` is called while
+   * reconnecting, this callback does not fire again.
    */
-  onTransportDrop?: (err: Error) => void;
+  onTransportDrop?: (err: Error | null) => void;
 
   /**
    * Wire-format codec for encoding/decoding {@link Frame}s.
@@ -95,6 +100,32 @@ export interface ClientOptions {
    * This option is silently ignored in browser environments.
    */
   dialHeaders?: Record<string, string>;
+
+  /**
+   * Maximum number of outbound frames that can be buffered before
+   * {@link Client.send} throws {@link SendBufferFullError}.
+   *
+   * Must be between 1 and 4096 inclusive. Default: 256.
+   */
+  sendBufferSize?: number;
+
+  /**
+   * Custom dialer function for testing.
+   *
+   * @internal Test-only. When provided, `connect()` and the reconnect loop
+   * use this function instead of opening a real WebSocket connection.
+   * The default (`undefined`) falls back to the built-in `dialWebSocket`.
+   */
+  _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
+
+  /**
+   * Custom timer clock for testing.
+   *
+   * @internal Test-only. When provided, all `setTimeout`/`setInterval` calls
+   * in the client are routed through this clock instead of the global timer
+   * functions. The default (`undefined`) falls back to {@link defaultClock}.
+   */
+  _clock?: Clock;
 }
 
 /** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
@@ -108,6 +139,12 @@ const DEFAULT_WRITE_WAIT = 10_000;
 
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
+
+/** @internal Default send buffer capacity: 256 frames. */
+const DEFAULT_SEND_BUFFER_SIZE = 256;
+
+/** @internal Upper bound for send buffer size. */
+const MAX_SEND_BUFFER_SIZE = 4096;
 
 /** @internal Upper bound constants for config validation. */
 const MAX_PING_PERIOD = 60_000;
@@ -128,13 +165,17 @@ export interface ResolvedOptions {
   onMessage: (frame: Frame) => void;
   onDisconnect: (err: Error | null) => void;
   onTransportRestore: () => void;
-  onTransportDrop: (err: Error) => void;
+  onTransportDrop: (err: Error | null) => void;
   codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
   heartbeat: HeartbeatOptions;
   writeWait: number;
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
+  sendBufferSize: number;
+  _dialer?: (url: string, opts: ResolvedOptions) => Promise<Transport>;
+  /** @internal */
+  _clock: Clock;
 }
 
 /** @internal Shared no-op callback for all unset option callbacks. */
@@ -183,6 +224,31 @@ function validateOptions(opts: ClientOptions): void {
         "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
       );
     }
+  }
+
+  if (opts.sendBufferSize !== undefined) {
+    if (
+      !Number.isFinite(opts.sendBufferSize) ||
+      !Number.isInteger(opts.sendBufferSize)
+    ) {
+      throw new Error("wspulse: sendBufferSize must be a finite integer");
+    }
+    if (opts.sendBufferSize < 1) {
+      throw new Error("wspulse: sendBufferSize must be at least 1");
+    }
+    if (opts.sendBufferSize > MAX_SEND_BUFFER_SIZE) {
+      throw new Error(
+        `wspulse: sendBufferSize exceeds maximum (${MAX_SEND_BUFFER_SIZE})`,
+      );
+    }
+  }
+
+  if (opts._dialer !== undefined && typeof opts._dialer !== "function") {
+    throw new Error("wspulse: _dialer must be a function");
+  }
+
+  if (opts._clock !== undefined && typeof opts._clock !== "object") {
+    throw new Error("wspulse: _clock must be an object");
   }
 
   if (opts.autoReconnect !== undefined) {
@@ -234,5 +300,8 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
+    sendBufferSize: opts?.sendBufferSize ?? DEFAULT_SEND_BUFFER_SIZE,
+    _dialer: opts?._dialer,
+    _clock: opts?._clock ?? defaultClock,
   };
 }

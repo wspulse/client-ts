@@ -1,6 +1,6 @@
 {
   "name": "@wspulse/client-ts",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "WebSocket client for wspulse with auto-reconnect and exponential backoff",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -19,7 +19,6 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:watch": "vitest",
     "test:cover": "vitest run --coverage",
     "lint": "eslint src/ test/ && tsc --noEmit",
