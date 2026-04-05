@@ -202,7 +202,7 @@ class WspulseClient implements Client {
   /** Whether onDisconnect has been called (exactly-once guard). */
   private disconnectFired = false;
 
-  /** Whether the reconnect loop is active. Guards onTransportDrop(null) in shutdown. */
+  /** Whether a transport drop is being handled. Suppresses onTransportDrop(null) during shutdown. */
   private reconnecting = false;
 
   /** Pong deadline timer — fires when server stops responding. */
