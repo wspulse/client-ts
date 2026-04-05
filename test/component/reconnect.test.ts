@@ -216,8 +216,8 @@ describe("component: reconnect", () => {
     testClient = await connect("ws://mock/ws", {
       onTransportDrop() {
         transportDropCount++;
-        // Synchronous close() inside the callback — reconnecting is not yet
-        // set when this fires, so the bug would double-fire onTransportDrop.
+        // Synchronous close() inside the callback. Regression: before the fix,
+        // reconnecting was set after the callback, causing a double-fire.
         testClient?.close();
       },
       autoReconnect: { maxRetries: 5, baseDelay: 100, maxDelay: 500 },
