@@ -46,7 +46,4 @@ reliably as part of `make check` (via `npx vitest run`).
 The original integration tests (`test/integration.test.ts`) tested against a live
 `wspulse/server` via the shared testserver. These have been superseded by the
 component tests above. The integration test file and `vitest.integration.config.ts`
-are retained for optional end-to-end validation but are not part of the per-commit
-CI pipeline.
-
-**Run (optional):** `make test-integration` (requires Go testserver as sibling repo)
+were removed in v0.5.0; there is no longer a `make test-integration` target.

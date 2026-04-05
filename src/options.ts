@@ -247,6 +247,10 @@ function validateOptions(opts: ClientOptions): void {
     throw new Error("wspulse: _dialer must be a function");
   }
 
+  if (opts._clock !== undefined && typeof opts._clock !== "object") {
+    throw new Error("wspulse: _clock must be an object");
+  }
+
   if (opts.autoReconnect !== undefined) {
     const rc = opts.autoReconnect;
     if (rc.maxRetries < 0) {
