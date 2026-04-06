@@ -479,13 +479,17 @@ class WspulseClient implements Client {
     }, 5);
   }
 
-  /** Stop the drain timer and reset draining state. */
+  /**
+   * Stop any scheduled drain timer.
+   *
+   * Does not reset `draining` — an async flush may be in progress and
+   * its `finally` block is responsible for clearing the flag.
+   */
   private stopDrain(): void {
     if (this.drainTimer !== null) {
       this.clock.clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
-    this.draining = false;
   }
 
   // ── heartbeat ───────────────────────────────────────────────────────────
@@ -574,7 +578,7 @@ class WspulseClient implements Client {
 
   /**
    * Flush all buffered frames to the WebSocket serially with per-write
-   * timeout. On Node.js each frame is sent via `sendWithTimeout` so a
+   * timeout. On Node.js each frame is sent via `sendOneFrame` so a
    * stalled socket is detected within `writeWait`. In browsers `send()`
    * is fire-and-forget (no completion callback) so no deadline applies.
    *
@@ -638,9 +642,10 @@ class WspulseClient implements Client {
         }
         resolve(false);
       }, this.opts.writeWait);
-      (ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void)(
-        data,
-        (err) => {
+      try {
+        (
+          ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void
+        )(data, (err) => {
           if (settled) return;
           settled = true;
           this.clock.clearTimeout(timer);
@@ -654,8 +659,15 @@ class WspulseClient implements Client {
           } else {
             resolve(true);
           }
-        },
-      );
+        });
+      } catch {
+        // ws.send() threw synchronously (e.g. socket state changed between
+        // readyState check and send call). Clean up the timeout and bail.
+        if (settled) return;
+        settled = true;
+        this.clock.clearTimeout(timer);
+        resolve(false);
+      }
     });
   }
 
