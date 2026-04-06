@@ -66,8 +66,12 @@ describe("component: misc", () => {
       ),
     );
 
-    // Advance past the drain timer (5 ms).
+    // Advance past the drain timer (5 ms). The async flush sends frames
+    // serially; each frame needs one microtask tick for the await. FakeClock
+    // flushes 10 microtasks after the timer fires; yield the remaining ticks
+    // so all 250 frames complete.
     await clock.advance(10);
+    for (let i = 0; i < total; i++) await Promise.resolve();
 
     expect(transport.sent.length).toBe(total);
 
@@ -131,7 +135,9 @@ describe("component: misc", () => {
 
     // onTransportDrop must have fired with a non-null error.
     expect(dropErr).toBeInstanceOf(Error);
-    expect((dropErr as Error).message).toContain("transport closed unexpectedly");
+    expect((dropErr as Error).message).toContain(
+      "transport closed unexpectedly",
+    );
 
     // Prevent afterEach from double-closing.
     testClient = null;

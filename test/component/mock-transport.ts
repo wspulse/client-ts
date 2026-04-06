@@ -50,8 +50,10 @@ export class MockTransport implements Transport {
     this.sent.push(data);
     // When stalled, the callback is never invoked (simulates a blocked socket
     // where the kernel buffer is full and the write never completes).
+    // Callback fires synchronously (no queueMicrotask) since the mock has no
+    // real I/O; the await in sendOneFrame still creates a microtask boundary.
     if (!this.sendsStalled && cb) {
-      queueMicrotask(() => cb());
+      cb();
     }
   }
 

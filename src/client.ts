@@ -196,6 +196,9 @@ class WspulseClient implements Client {
   /** Drain timer for flushing the send buffer. */
   private drainTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Whether an async flush is in progress (prevents re-entry). */
+  private draining = false;
+
   /** AbortController for cancelling the reconnect loop. */
   private abortController: AbortController;
 
@@ -469,19 +472,20 @@ class WspulseClient implements Client {
    * Called from send() and after a successful reconnect.
    */
   private startDrain(): void {
-    if (this.drainTimer !== null) return;
+    if (this.draining || this.drainTimer !== null) return;
     this.drainTimer = this.clock.setTimeout(() => {
       this.drainTimer = null;
-      this.flushSendBuffer();
+      void this.flushSendBuffer();
     }, 5);
   }
 
-  /** Stop the drain timer. */
+  /** Stop the drain timer and reset draining state. */
   private stopDrain(): void {
     if (this.drainTimer !== null) {
       this.clock.clearTimeout(this.drainTimer);
       this.drainTimer = null;
     }
+    this.draining = false;
   }
 
   // ── heartbeat ───────────────────────────────────────────────────────────
@@ -569,22 +573,90 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Flush all buffered frames to the WebSocket.
+   * Flush all buffered frames to the WebSocket serially with per-write
+   * timeout. On Node.js each frame is sent via `sendWithTimeout` so a
+   * stalled socket is detected within `writeWait`. In browsers `send()`
+   * is fire-and-forget (no completion callback) so no deadline applies.
    *
    * Stops draining if the socket is not open (reconnect will restart it).
    */
-  private flushSendBuffer(): void {
+  private async flushSendBuffer(): Promise<void> {
     if (this.ws.readyState !== WS_OPEN) return;
-    // splice(0) grabs all frames in O(n) — avoids O(n²) from repeated shift().
-    const frames = this.sendBuffer.splice(0);
-    for (const encoded of frames) {
-      try {
-        this.ws.send(encoded);
-      } catch {
-        // Write error — the onclose handler will fire and trigger teardown.
-        return;
+    this.draining = true;
+    try {
+      while (this.sendBuffer.length > 0 && !this.closed) {
+        if (this.ws.readyState !== WS_OPEN) return;
+        const encoded = this.sendBuffer[0];
+        const ok = await this.sendOneFrame(encoded);
+        if (!ok) return; // timeout or error — socket is closing
+        this.sendBuffer.shift();
+      }
+    } finally {
+      this.draining = false;
+      // If new frames arrived during the flush, schedule another drain.
+      if (this.sendBuffer.length > 0 && !this.closed) {
+        this.startDrain();
       }
     }
+  }
+
+  /**
+   * Send a single frame with write-deadline enforcement.
+   *
+   * On Node.js (`ws` library): uses the callback form of `send()` and
+   * races it against a `writeWait` timeout. On timeout the socket is
+   * closed, which triggers `handleTransportDrop`.
+   *
+   * In browsers: `send()` is fire-and-forget; returns `true` immediately.
+   *
+   * @returns `true` if the write completed, `false` if it timed out or errored.
+   */
+  private sendOneFrame(data: string | Uint8Array): Promise<boolean> {
+    if (this.ws.readyState !== WS_OPEN) return Promise.resolve(false);
+    const ws = this.ws;
+
+    // Browsers: no write-completion event — send is best-effort.
+    if (typeof ws.on !== "function") {
+      try {
+        ws.send(data);
+      } catch {
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(true);
+    }
+
+    // Node.js ws: race callback vs writeWait timeout.
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const timer = this.clock.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try {
+          ws.close(1001, "write timeout");
+        } catch {
+          // Already closed.
+        }
+        resolve(false);
+      }, this.opts.writeWait);
+      (ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void)(
+        data,
+        (err) => {
+          if (settled) return;
+          settled = true;
+          this.clock.clearTimeout(timer);
+          if (err) {
+            try {
+              ws.close(1001, "write error");
+            } catch {
+              // Already closed.
+            }
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        },
+      );
+    });
   }
 
   /**
