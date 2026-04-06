@@ -188,6 +188,9 @@ const noop = () => {};
  */
 function validateOptions(opts: ClientOptions): void {
   if (opts.maxMessageSize !== undefined) {
+    if (!Number.isFinite(opts.maxMessageSize)) {
+      throw new Error("wspulse: maxMessageSize must be a finite number");
+    }
     if (opts.maxMessageSize < 0) {
       throw new Error("wspulse: maxMessageSize must be non-negative");
     }
@@ -197,6 +200,9 @@ function validateOptions(opts: ClientOptions): void {
   }
 
   if (opts.writeWait !== undefined) {
+    if (!Number.isFinite(opts.writeWait)) {
+      throw new Error("wspulse: writeWait must be a finite number");
+    }
     if (opts.writeWait <= 0) {
       throw new Error("wspulse: writeWait must be positive");
     }
@@ -207,11 +213,17 @@ function validateOptions(opts: ClientOptions): void {
 
   if (opts.heartbeat !== undefined) {
     const hb = opts.heartbeat;
+    if (!Number.isFinite(hb.pingPeriod)) {
+      throw new Error("wspulse: heartbeat.pingPeriod must be a finite number");
+    }
     if (hb.pingPeriod <= 0) {
       throw new Error("wspulse: heartbeat.pingPeriod must be positive");
     }
     if (hb.pingPeriod > MAX_PING_PERIOD) {
       throw new Error("wspulse: heartbeat.pingPeriod exceeds maximum (1m)");
+    }
+    if (!Number.isFinite(hb.pongWait)) {
+      throw new Error("wspulse: heartbeat.pongWait must be a finite number");
     }
     if (hb.pongWait <= 0) {
       throw new Error("wspulse: heartbeat.pongWait must be positive");
