@@ -662,10 +662,16 @@ class WspulseClient implements Client {
         });
       } catch {
         // ws.send() threw synchronously (e.g. socket state changed between
-        // readyState check and send call). Clean up the timeout and bail.
+        // readyState check and send call). Close the socket so onclose fires
+        // and triggers the transport drop / reconnect path.
         if (settled) return;
         settled = true;
         this.clock.clearTimeout(timer);
+        try {
+          ws.close(1001, "write error");
+        } catch {
+          // Already closed.
+        }
         resolve(false);
       }
     });
