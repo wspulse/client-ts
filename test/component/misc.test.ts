@@ -197,6 +197,35 @@ describe("component: misc", () => {
     expect(f1.event).toBe("b");
   });
 
+  // Browser path: send() has no callback form, no timeout enforced
+  it("browser transport sends without timeout", async () => {
+    const clock = new FakeClock();
+
+    // Create a transport without on() — simulates browser WebSocket.
+    const t = new MockTransport();
+    // Remove on/removeListener to simulate browser environment.
+    (t as unknown as Record<string, unknown>).on = undefined;
+    (t as unknown as Record<string, unknown>).removeListener = undefined;
+
+    const dialer = new MockDialer([t]);
+    const client = await connect("ws://mock/ws", {
+      writeWait: 100,
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+    testClient = client;
+
+    client.send({ event: "browser-msg" });
+
+    // Advance past drain timer.
+    await clock.advance(10);
+
+    // Frame should be sent synchronously (browser path).
+    expect(t.sent.length).toBe(1);
+    const f = JSON.parse(t.sent[0] as string) as Frame;
+    expect(f.event).toBe("browser-msg");
+  });
+
   // Scenario 7: Pong timeout -> ConnectionLostError
   it("pong timeout triggers ConnectionLostError", async () => {
     let disconnectErr: Error | null | undefined;
