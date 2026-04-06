@@ -35,13 +35,26 @@ export class MockTransport implements Transport {
   /** When true, `ping()` does not trigger pong handlers. */
   private pongsDisabled = false;
 
+  /** When true, `send()` callback is never called (simulates stalled socket). */
+  private sendsStalled = false;
+
   // ── Transport interface ─────────────────────────────────────────────────
 
-  send(data: string | ArrayBuffer | Uint8Array | Blob): void {
+  send(
+    data: string | ArrayBuffer | Uint8Array | Blob,
+    cb?: (err?: Error) => void,
+  ): void {
     if (this.readyState !== WS_OPEN) {
       throw new Error("MockTransport: send on non-open socket");
     }
     this.sent.push(data);
+    // When stalled, the callback is never invoked (simulates a blocked socket
+    // where the kernel buffer is full and the write never completes).
+    // Callback fires synchronously (no queueMicrotask) since the mock has no
+    // real I/O; the await in sendOneFrame still creates a microtask boundary.
+    if (!this.sendsStalled && cb) {
+      cb();
+    }
   }
 
   close(code?: number, reason?: string): void {
@@ -98,6 +111,11 @@ export class MockTransport implements Transport {
   /** Stop responding to pings (simulates pong timeout). */
   suppressPongs(): void {
     this.pongsDisabled = true;
+  }
+
+  /** Stall all future sends — callback is never invoked (simulates blocked socket). */
+  stallSends(): void {
+    this.sendsStalled = true;
   }
 }
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Normal write path now enforces `writeWait` per frame on Node.js. Previously only the shutdown flush used `sendWithTimeout`; a stalled socket during regular sends would block indefinitely without triggering `onTransportDrop`. Browser path is unchanged (fire-and-forget).
+
 ---
 
 ## [0.5.0] - 2026-04-04
