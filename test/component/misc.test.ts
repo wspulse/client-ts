@@ -94,6 +94,50 @@ describe("component: misc", () => {
     }).toThrow(SendBufferFullError);
   });
 
+  // Write timeout: stalled socket triggers onTransportDrop within writeWait
+  it("stalled socket triggers onTransportDrop within writeWait", async () => {
+    const clock = new FakeClock();
+    let dropErr: Error | null | undefined;
+    let dropResolve: () => void = () => {};
+    const dropped = new Promise<void>((r) => {
+      dropResolve = r;
+    });
+
+    const t = new MockTransport();
+    // Stall sends so the write callback never fires.
+    t.stallSends();
+
+    const { client } = await connectMock(
+      clock,
+      {
+        writeWait: 100,
+        onTransportDrop(err) {
+          dropErr = err;
+          dropResolve();
+        },
+      },
+      t,
+    );
+
+    // Send a frame — it goes into the buffer.
+    client.send({ event: "ping" });
+
+    // Advance past the drain timer (5 ms) so flushSendBuffer fires.
+    await clock.advance(10);
+
+    // The send is now stalled. Advance past writeWait (100 ms) to trigger timeout.
+    await clock.advance(100);
+    await dropped;
+
+    // onTransportDrop must have fired with a non-null error.
+    expect(dropErr).toBeInstanceOf(Error);
+    expect((dropErr as Error).message).toContain("transport closed unexpectedly");
+
+    // Prevent afterEach from double-closing.
+    testClient = null;
+    void client;
+  });
+
   // Scenario 7: Pong timeout -> ConnectionLostError
   it("pong timeout triggers ConnectionLostError", async () => {
     let disconnectErr: Error | null | undefined;
