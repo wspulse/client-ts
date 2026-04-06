@@ -212,6 +212,9 @@ function validateOptions(opts: ClientOptions): void {
   }
 
   if (opts.heartbeat !== undefined) {
+    if (typeof opts.heartbeat !== "object" || opts.heartbeat === null) {
+      throw new Error("wspulse: heartbeat must be an object");
+    }
     const hb = opts.heartbeat;
     if (!Number.isFinite(hb.pingPeriod)) {
       throw new Error("wspulse: heartbeat.pingPeriod must be a finite number");
