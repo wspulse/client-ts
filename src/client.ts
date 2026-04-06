@@ -660,61 +660,6 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Send data with a write-deadline timeout.
-   *
-   * Used to flush buffered frames during shutdown. If a blocked socket
-   * does not complete the send within `writeWait` ms, the timer fires
-   * and closes the socket with code 1001 "write timeout".
-   *
-   * In Node.js (ws library) the callback form `send(data, cb)` fires after
-   * the data is handed off to the kernel, so the deadline is cleared only
-   * on true write completion. In browsers `send()` has no completion callback
-   * and the call is best-effort with no enforced deadline.
-   *
-   * Regular data frames are sent via the one-shot drain timer in `send()`;
-   * `writeWait` guards only this shutdown-flush path.
-   */
-  private sendWithTimeout(data: string | Uint8Array, timeoutMs: number): void {
-    if (this.ws.readyState !== WS_OPEN) return;
-    const ws = this.ws;
-
-    // Browsers do not surface write-completion events — send is best-effort.
-    if (typeof ws.on !== "function") {
-      ws.send(data);
-      return;
-    }
-
-    // Node.js ws: use the callback form so the deadline clears only after the
-    // data has been handed off to the kernel. If the timer fires first the
-    // socket is closed, which will abort any in-progress send.
-    let settled = false;
-    const timer = this.clock.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        ws.close(1001, "write timeout");
-      } catch {
-        // Already closed.
-      }
-    }, timeoutMs);
-    (ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void)(
-      data,
-      (err) => {
-        if (settled) return;
-        settled = true;
-        this.clock.clearTimeout(timer);
-        if (err) {
-          try {
-            ws.close(1001, "write error");
-          } catch {
-            // Already closed.
-          }
-        }
-      },
-    );
-  }
-
-  /**
    * Transition to CLOSED state. Releases all resources.
    *
    * @param err `null` for clean close, an Error for abnormal disconnect.
@@ -730,12 +675,10 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
 
-    // Flush remaining buffer with write deadline before closing.
+    // Best-effort flush: fire each pending frame with writeWait deadline.
+    // Results are intentionally not awaited — shutdown proceeds immediately.
     while (this.sendBuffer.length > 0) {
-      this.sendWithTimeout(
-        this.sendBuffer.shift() as string | Uint8Array,
-        this.opts.writeWait,
-      );
+      void this.sendOneFrame(this.sendBuffer.shift() as string | Uint8Array);
     }
 
     // Close the WebSocket. Suppress errors (may already be closed).
