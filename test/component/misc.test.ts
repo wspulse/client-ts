@@ -144,6 +144,59 @@ describe("component: misc", () => {
     void client;
   });
 
+  // Write timeout: unsent frames preserved and re-drained after reconnect
+  it("stalled write preserves buffer across reconnect", async () => {
+    const clock = new FakeClock();
+    const received: Frame[] = [];
+    let restoreResolve: () => void = () => {};
+    const restored = new Promise<void>((r) => {
+      restoreResolve = r;
+    });
+
+    const t1 = new MockTransport();
+    t1.stallSends(); // first transport stalls
+
+    const t2 = new MockTransport(); // reconnect transport works normally
+
+    const dialer = new MockDialer([t1, t2]);
+    const client = await connect("ws://mock/ws", {
+      writeWait: 100,
+      autoReconnect: { maxRetries: 3, baseDelay: 10, maxDelay: 50 },
+      onMessage(frame) {
+        received.push(frame);
+      },
+      onTransportRestore() {
+        restoreResolve();
+      },
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+    testClient = client;
+
+    // Send two frames — they go into the buffer.
+    client.send({ event: "a" });
+    client.send({ event: "b" });
+
+    // Advance past drain timer (5 ms) → flush starts → stalls.
+    await clock.advance(10);
+
+    // Advance past writeWait (100 ms) → timeout → transport drop → reconnect.
+    // Then advance past backoff delay to let reconnect succeed.
+    await clock.advance(200);
+    await restored;
+
+    // Give the async flush enough microtask ticks to drain the 2 frames
+    // on the new transport.
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    // Both frames should have been sent on the new transport.
+    expect(t2.sent.length).toBe(2);
+    const f0 = JSON.parse(t2.sent[0] as string) as Frame;
+    const f1 = JSON.parse(t2.sent[1] as string) as Frame;
+    expect(f0.event).toBe("a");
+    expect(f1.event).toBe("b");
+  });
+
   // Scenario 7: Pong timeout -> ConnectionLostError
   it("pong timeout triggers ConnectionLostError", async () => {
     let disconnectErr: Error | null | undefined;
