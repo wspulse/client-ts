@@ -65,6 +65,10 @@ export function normalizeScheme(url: string): string {
 /** WebSocket readyState constants. */
 const WS_OPEN = 1;
 
+/** RFC 6455 close status codes. */
+const WS_CLOSE_NORMAL = 1000;
+const WS_CLOSE_GOING_AWAY = 1001;
+
 /**
  * Open a raw WebSocket connection.
  *
@@ -520,7 +524,7 @@ class WspulseClient implements Client {
         if (typeof ws.terminate === "function") {
           ws.terminate();
         } else {
-          ws.close(1001, "pong timeout");
+          ws.close(WS_CLOSE_GOING_AWAY, "pong timeout");
         }
       }, pongWait);
     };
@@ -636,7 +640,7 @@ class WspulseClient implements Client {
         if (settled) return;
         settled = true;
         try {
-          ws.close(1001, "write timeout");
+          ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
         } catch {
           // Already closed.
         }
@@ -651,7 +655,7 @@ class WspulseClient implements Client {
           this.clock.clearTimeout(timer);
           if (err) {
             try {
-              ws.close(1001, "write error");
+              ws.close(WS_CLOSE_GOING_AWAY, "write error");
             } catch {
               // Already closed.
             }
@@ -668,7 +672,7 @@ class WspulseClient implements Client {
         settled = true;
         this.clock.clearTimeout(timer);
         try {
-          ws.close(1001, "write error");
+          ws.close(WS_CLOSE_GOING_AWAY, "write error");
         } catch {
           // Already closed.
         }
@@ -704,7 +708,7 @@ class WspulseClient implements Client {
       this.ws.onmessage = null;
       this.ws.onclose = null;
       this.ws.onerror = null;
-      this.ws.close(1000, "");
+      this.ws.close(WS_CLOSE_NORMAL, "");
     } catch {
       // Already closed — ignore.
     }
