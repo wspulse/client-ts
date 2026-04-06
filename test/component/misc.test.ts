@@ -66,8 +66,12 @@ describe("component: misc", () => {
       ),
     );
 
-    // Advance past the drain timer (5 ms).
+    // Advance past the drain timer (5 ms). The async flush sends frames
+    // serially; each frame needs one microtask tick for the await. FakeClock
+    // flushes 10 microtasks after the timer fires; yield the remaining ticks
+    // so all 250 frames complete.
     await clock.advance(10);
+    for (let i = 0; i < total; i++) await Promise.resolve();
 
     expect(transport.sent.length).toBe(total);
 
@@ -92,6 +96,134 @@ describe("component: misc", () => {
     expect(() => {
       client.send({ event: "c" });
     }).toThrow(SendBufferFullError);
+  });
+
+  // Write timeout: stalled socket triggers onTransportDrop within writeWait
+  it("stalled socket triggers onTransportDrop within writeWait", async () => {
+    const clock = new FakeClock();
+    let dropErr: Error | null | undefined;
+    let dropResolve: () => void = () => {};
+    const dropped = new Promise<void>((r) => {
+      dropResolve = r;
+    });
+
+    const t = new MockTransport();
+    // Stall sends so the write callback never fires.
+    t.stallSends();
+
+    const { client } = await connectMock(
+      clock,
+      {
+        writeWait: 100,
+        onTransportDrop(err) {
+          dropErr = err;
+          dropResolve();
+        },
+      },
+      t,
+    );
+
+    // Send a frame — it goes into the buffer.
+    client.send({ event: "ping" });
+
+    // Advance past the drain timer (5 ms) so flushSendBuffer fires.
+    await clock.advance(10);
+
+    // The send is now stalled. Advance past writeWait (100 ms) to trigger timeout.
+    await clock.advance(100);
+    await dropped;
+
+    // onTransportDrop must have fired with a non-null error.
+    expect(dropErr).toBeInstanceOf(Error);
+    expect((dropErr as Error).message).toContain(
+      "transport closed unexpectedly",
+    );
+
+    // Prevent afterEach from double-closing.
+    testClient = null;
+    void client;
+  });
+
+  // Write timeout: unsent frames preserved and re-drained after reconnect
+  it("stalled write preserves buffer across reconnect", async () => {
+    const clock = new FakeClock();
+    const received: Frame[] = [];
+    let restoreResolve: () => void = () => {};
+    const restored = new Promise<void>((r) => {
+      restoreResolve = r;
+    });
+
+    const t1 = new MockTransport();
+    t1.stallSends(); // first transport stalls
+
+    const t2 = new MockTransport(); // reconnect transport works normally
+
+    const dialer = new MockDialer([t1, t2]);
+    const client = await connect("ws://mock/ws", {
+      writeWait: 100,
+      autoReconnect: { maxRetries: 3, baseDelay: 10, maxDelay: 50 },
+      onMessage(frame) {
+        received.push(frame);
+      },
+      onTransportRestore() {
+        restoreResolve();
+      },
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+    testClient = client;
+
+    // Send two frames — they go into the buffer.
+    client.send({ event: "a" });
+    client.send({ event: "b" });
+
+    // Advance past drain timer (5 ms) → flush starts → stalls.
+    await clock.advance(10);
+
+    // Advance past writeWait (100 ms) → timeout → transport drop → reconnect.
+    // Then advance past backoff delay to let reconnect succeed.
+    await clock.advance(200);
+    await restored;
+
+    // Give the async flush enough microtask ticks to drain the 2 frames
+    // on the new transport.
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    // Both frames should have been sent on the new transport.
+    expect(t2.sent.length).toBe(2);
+    const f0 = JSON.parse(t2.sent[0] as string) as Frame;
+    const f1 = JSON.parse(t2.sent[1] as string) as Frame;
+    expect(f0.event).toBe("a");
+    expect(f1.event).toBe("b");
+  });
+
+  // Browser path: send() has no callback form, no timeout enforced
+  it("browser transport sends without timeout", async () => {
+    const clock = new FakeClock();
+
+    // Create a transport without on() — simulates browser WebSocket.
+    const t = new MockTransport();
+    // Remove on/removeListener to simulate browser environment.
+    (t as unknown as Record<string, unknown>).on = undefined;
+    (t as unknown as Record<string, unknown>).removeListener = undefined;
+
+    const dialer = new MockDialer([t]);
+    const client = await connect("ws://mock/ws", {
+      writeWait: 100,
+      _dialer: dialer.dial,
+      _clock: clock,
+    });
+    testClient = client;
+
+    client.send({ event: "browser-msg" });
+
+    // Advance past drain timer.
+    await clock.advance(10);
+
+    // Frame should be sent synchronously (browser path).
+    expect(t.sent.length).toBe(1);
+    const f = JSON.parse(t.sent[0] as string) as Frame;
+    expect(f.event).toBe("browser-msg");
   });
 
   // Scenario 7: Pong timeout -> ConnectionLostError

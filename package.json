@@ -1,6 +1,6 @@
 {
   "name": "@wspulse/client-ts",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "WebSocket client for wspulse with auto-reconnect and exponential backoff",
   "type": "module",
   "main": "./dist/index.cjs",
