@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `close()` now discards unsent buffered frames instead of attempting a best-effort flush. Aligns with the behaviour contract: frames accepted by `send()` but not yet written to the transport are discarded on close.
+
 ---
 
 ## [0.5.1] - 2026-04-06

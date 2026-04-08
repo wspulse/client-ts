@@ -197,6 +197,25 @@ describe("component: misc", () => {
     expect(f1.event).toBe("b");
   });
 
+  // close() discards unsent buffered frames (contract: close() does not drain)
+  it("close discards unsent buffered frames", async () => {
+    const clock = new FakeClock();
+    const t = new MockTransport();
+    const { client } = await connectMock(clock, {}, t);
+
+    // Buffer three frames — drain timer (5 ms) has not fired yet.
+    client.send({ event: "a" });
+    client.send({ event: "b" });
+    client.send({ event: "c" });
+
+    // Close immediately — before drain timer fires.
+    client.close();
+    await client.done;
+
+    // No frames should have been sent to the transport.
+    expect(t.sent.length).toBe(0);
+  });
+
   // Browser path: send() has no callback form, no timeout enforced
   it("browser transport sends without timeout", async () => {
     const clock = new FakeClock();
