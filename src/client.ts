@@ -697,11 +697,8 @@ class WspulseClient implements Client {
     this.stopDrain();
     this.stopHeartbeat();
 
-    // Best-effort flush: fire each pending frame with writeWait deadline.
-    // Results are intentionally not awaited — shutdown proceeds immediately.
-    while (this.sendBuffer.length > 0) {
-      void this.sendOneFrame(this.sendBuffer.shift() as string | Uint8Array);
-    }
+    // Discard unsent frames — close() does not drain the send buffer.
+    this.sendBuffer.length = 0;
 
     // Close the WebSocket. Suppress errors (may already be closed).
     try {
