@@ -36,6 +36,16 @@ export class RingBuffer<T> {
   }
 
   /**
+   * Return the front item without removing it.
+   *
+   * @returns The oldest item, or `undefined` if the buffer is empty.
+   */
+  peek(): T | undefined {
+    if (this.size === 0) return undefined;
+    return this.data[this.head];
+  }
+
+  /**
    * Remove and return the front item.
    *
    * @returns The oldest item, or `undefined` if the buffer is empty.

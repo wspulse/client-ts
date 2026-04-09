@@ -27,6 +27,22 @@ describe("RingBuffer", () => {
     expect(rb.length).toBe(2);
   });
 
+  // ── B2: peek ───────────────────────────────────────────────────────
+
+  it("B3: peek returns front without removing", () => {
+    const rb = new RingBuffer<string>(3);
+    rb.push("a");
+    rb.push("b");
+    expect(rb.peek()).toBe("a");
+    expect(rb.length).toBe(2);
+    expect(rb.peek()).toBe("a"); // idempotent
+  });
+
+  it("B4: peek returns undefined when empty", () => {
+    const rb = new RingBuffer<number>(2);
+    expect(rb.peek()).toBeUndefined();
+  });
+
   // ── C: shift ───────────────────────────────────────────────────────
 
   it("C1: shift returns elements in FIFO order", () => {
