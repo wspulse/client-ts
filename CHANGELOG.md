@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Internal send buffer replaced with a ring buffer for O(1) enqueue and dequeue (previously O(n) dequeue via `Array.shift()`). No API or behaviour changes.
+
 ### Fixed
 
 - `close()` now discards unsent buffered frames instead of attempting a best-effort flush. Aligns with the behaviour contract: frames accepted by `send()` but not yet written to the transport are discarded on close.
