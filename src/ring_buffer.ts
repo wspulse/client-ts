@@ -6,7 +6,7 @@
  *
  * @internal
  */
-export class RingBuffer<T> {
+export class RingBuffer<T extends NonNullable<unknown>> {
   private readonly data: (T | undefined)[];
   private head = 0;
   private size = 0;

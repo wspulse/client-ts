@@ -596,7 +596,13 @@ class WspulseClient implements Client {
       while (this.sendBuffer.length > 0 && !this.closed) {
         if (this.ws.readyState !== WS_OPEN) return;
         const encoded = this.sendBuffer.peek();
-        if (encoded === undefined) break;
+        // Defensive: T is NonNullable, so this path is unreachable under
+        // correct usage. Shift and skip rather than break to avoid leaving
+        // a stale entry that would re-trigger drain indefinitely.
+        if (encoded === undefined) {
+          this.sendBuffer.shift();
+          continue;
+        }
         const ok = await this.sendOneFrame(encoded);
         if (!ok) return; // timeout or error — socket is closing
         this.sendBuffer.shift();
