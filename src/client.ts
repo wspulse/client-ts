@@ -3,7 +3,7 @@ import type { Frame } from "./frame.js";
 import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
 import { resolveOptions } from "./options.js";
-import { RingBuffer } from "./ring_buffer.js";
+import { RingBuffer } from "./ring-buffer.js";
 import {
   ConnectionClosedError,
   RetriesExhaustedError,
