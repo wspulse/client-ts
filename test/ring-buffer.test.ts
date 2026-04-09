@@ -7,6 +7,13 @@ describe("RingBuffer", () => {
   it("A1: starts empty with correct capacity", () => {
     const rb = new RingBuffer<number>(4);
     expect(rb.length).toBe(0);
+    // Verify capacity is honoured: push 4 succeeds, push 5 fails.
+    expect(rb.push(1)).toBe(true);
+    expect(rb.push(2)).toBe(true);
+    expect(rb.push(3)).toBe(true);
+    expect(rb.push(4)).toBe(true);
+    expect(rb.push(5)).toBe(false);
+    expect(rb.length).toBe(4);
   });
 
   // ── B: push ────────────────────────────────────────────────────────
