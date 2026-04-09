@@ -3,6 +3,7 @@ import type { Frame } from "./frame.js";
 import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
 import { resolveOptions } from "./options.js";
+import { RingBuffer } from "./ring-buffer.js";
 import {
   ConnectionClosedError,
   RetriesExhaustedError,
@@ -186,7 +187,7 @@ class WspulseClient implements Client {
   private ws: Transport;
 
   /** Bounded send buffer (throws when full). */
-  private readonly sendBuffer: (string | Uint8Array)[] = [];
+  private readonly sendBuffer: RingBuffer<string | Uint8Array>;
 
   /** Whether the client is permanently closed. */
   private closed = false;
@@ -232,6 +233,7 @@ class WspulseClient implements Client {
     this.opts = opts;
     this.ws = ws;
     this.clock = opts._clock;
+    this.sendBuffer = new RingBuffer(opts.sendBufferSize);
     this.abortController = new AbortController();
 
     let resolve!: () => void;
@@ -261,10 +263,9 @@ class WspulseClient implements Client {
       throw new ConnectionClosedError();
     }
     const data = this.opts.codec.encode(frame);
-    if (this.sendBuffer.length >= this.opts.sendBufferSize) {
+    if (!this.sendBuffer.push(data)) {
       throw new SendBufferFullError();
     }
-    this.sendBuffer.push(data);
     this.startDrain();
   }
 
@@ -594,7 +595,14 @@ class WspulseClient implements Client {
     try {
       while (this.sendBuffer.length > 0 && !this.closed) {
         if (this.ws.readyState !== WS_OPEN) return;
-        const encoded = this.sendBuffer[0];
+        const encoded = this.sendBuffer.peek();
+        // Defensive: T is NonNullable, so this path is unreachable under
+        // correct usage. Shift and skip rather than break to avoid leaving
+        // a stale entry that would re-trigger drain indefinitely.
+        if (encoded === undefined) {
+          this.sendBuffer.shift();
+          continue;
+        }
         const ok = await this.sendOneFrame(encoded);
         if (!ok) return; // timeout or error — socket is closing
         this.sendBuffer.shift();
@@ -698,7 +706,7 @@ class WspulseClient implements Client {
     this.stopHeartbeat();
 
     // Discard unsent frames — close() does not drain the send buffer.
-    this.sendBuffer.length = 0;
+    this.sendBuffer.clear();
 
     // Close the WebSocket. Suppress errors (may already be closed).
     try {
