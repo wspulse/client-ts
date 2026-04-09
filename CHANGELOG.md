@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.5.2] - 2026-04-09
+
 ### Changed
 
 - Internal send buffer replaced with a ring buffer for O(1) enqueue and dequeue (previously O(n) dequeue via `Array.shift()`). No API or behaviour changes.
