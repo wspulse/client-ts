@@ -1,0 +1,42 @@
+name: PR to Main Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+jobs:
+  changelog-gate:
+    uses: wspulse/.github/.github/workflows/pr-to-main-gate.yml@main
+
+  version-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Version consistency check
+        run: |
+          set -euo pipefail
+          CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          if [ -z "$CHANGELOG_TOP" ]; then
+            echo "Failed to parse top entry from CHANGELOG.md"
+            exit 1
+          fi
+          if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
+            echo "CHANGELOG is [Unreleased] — version check skipped (changelog-gate handles this)"
+            exit 0
+          fi
+          PKG_VERSION=$(jq -r '.version' package.json)
+          LOCK_VERSION=$(jq -r '.version' package-lock.json)
+          FAIL=0
+          if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
+            echo "Mismatch: package.json=$PKG_VERSION, CHANGELOG=$CHANGELOG_TOP"
+            FAIL=1
+          fi
+          if [ "$LOCK_VERSION" != "$CHANGELOG_TOP" ]; then
+            echo "Mismatch: package-lock.json=$LOCK_VERSION, CHANGELOG=$CHANGELOG_TOP"
+            FAIL=1
+          fi
+          if [ "$FAIL" -eq 1 ]; then exit 1; fi
+          echo "All versions match: $CHANGELOG_TOP"
