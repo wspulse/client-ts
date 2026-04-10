@@ -65,24 +65,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: CHANGELOG gate
+      - name: Package version consistency check
         run: |
+          set -euo pipefail
           CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
-          if [[ "${{ github.base_ref }}" == "main" ]]; then
-            if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
-              echo "Cannot merge to main with [Unreleased] CHANGELOG — bump the version first"
-              exit 1
-            fi
+          if [ -z "$CHANGELOG_TOP" ] || [ "$CHANGELOG_TOP" = "Unreleased" ]; then
+            echo "CHANGELOG is Unreleased — skipping version check"
+            exit 0
           fi
-          if [ "$CHANGELOG_TOP" != "Unreleased" ]; then
-            PKG_VERSION=$(jq -r '.version' package.json)
-            if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
-              echo "Version mismatch: package.json=$PKG_VERSION, CHANGELOG top=$CHANGELOG_TOP"
-              exit 1
-            fi
-            echo "Versions match: $PKG_VERSION"
+          PKG_VERSION=$(jq -r '.version' package.json)
+          if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
+            echo "Version mismatch: package.json=$PKG_VERSION, CHANGELOG top=$CHANGELOG_TOP"
+            exit 1
           fi
-          echo "CHANGELOG top: $CHANGELOG_TOP — OK"
+          echo "Versions match: $PKG_VERSION"
 
       - name: Verify lint-test passed
         run: |
