@@ -22,6 +22,8 @@ fmt: ## Format source files with Prettier
 	@npx prettier --write "src/**/*.ts" "test/**/*.ts"
 
 check: ## Run fmt-check, lint, and unit tests
+	@echo "── install ──"
+	@npm install --silent
 	@echo "── fmt ──"
 	@npx prettier --check "src/**/*.ts" "test/**/*.ts"
 	@echo "── lint ──"
