@@ -48,6 +48,12 @@ jobs:
       - name: Version consistency check
         run: |
           CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.base_ref }}" == "main" ]]; then
+            if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
+              echo "Cannot merge to main with [Unreleased] CHANGELOG — bump the version first"
+              exit 1
+            fi
+          fi
           if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
             echo "CHANGELOG is Unreleased — skipping version check"
             exit 0
