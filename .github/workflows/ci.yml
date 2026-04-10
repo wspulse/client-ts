@@ -45,6 +45,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Version consistency check
+        run: |
+          CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
+          if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
+            echo "CHANGELOG is Unreleased — skipping version check"
+            exit 0
+          fi
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
+            echo "Version mismatch: package.json=$PKG_VERSION, CHANGELOG top=$CHANGELOG_TOP"
+            exit 1
+          fi
+          echo "Versions match: $PKG_VERSION"
+
       - name: Format check
         run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
 
