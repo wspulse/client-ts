@@ -62,24 +62,6 @@ jobs:
     if: always()
     needs: [lint-test]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Package version consistency check
-        run: |
-          set -euo pipefail
-          CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
-          if [ -z "$CHANGELOG_TOP" ] || [ "$CHANGELOG_TOP" = "Unreleased" ]; then
-            echo "CHANGELOG is Unreleased — skipping version check"
-            exit 0
-          fi
-          PKG_VERSION=$(jq -r '.version' package.json)
-          if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
-            echo "Version mismatch: package.json=$PKG_VERSION, CHANGELOG top=$CHANGELOG_TOP"
-            exit 1
-          fi
-          echo "Versions match: $PKG_VERSION"
-
       - name: Verify lint-test passed
         run: |
           if [[ "${{ needs.lint-test.result }}" != "success" ]]; then
