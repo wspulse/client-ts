@@ -64,7 +64,7 @@ export class FakeClock implements Clock {
       this._timers = this._timers.filter((t) => t.deadline > this._now);
 
       // Fire callbacks. A prior callback may clear a later timer at the same
-      // deadline via clearTimeout/clearInterval — skip it if its ID was cleared.
+      // deadline via clearTimeout — skip it if its ID was cleared.
       this._clearedIds.clear();
       for (const t of toFire) {
         if (this._clearedIds.has(t.id)) continue;
