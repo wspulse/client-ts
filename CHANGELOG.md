@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING**: `HeartbeatOptions` interface and `ClientOptions.heartbeat` option — client-side ping is removed; dead-connection detection is now handled exclusively by the Hub's server-side heartbeat.
+
 ---
 
 ## [0.5.2] - 2026-04-09

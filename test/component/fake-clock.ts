@@ -14,8 +14,6 @@ interface TimerEntry {
   id: number;
   deadline: number;
   fn: () => void;
-  type: "timeout" | "interval";
-  interval?: number;
 }
 
 export class FakeClock implements Clock {
@@ -26,34 +24,11 @@ export class FakeClock implements Clock {
 
   setTimeout(fn: () => void, ms: number): ReturnType<typeof setTimeout> {
     const id = this._nextId++;
-    this._timers.push({
-      id,
-      deadline: this._now + ms,
-      fn,
-      type: "timeout",
-    });
+    this._timers.push({ id, deadline: this._now + ms, fn });
     return id as unknown as ReturnType<typeof setTimeout>;
   }
 
   clearTimeout(handle: ReturnType<typeof setTimeout>): void {
-    const id = handle as unknown as number;
-    this._timers = this._timers.filter((t) => t.id !== id);
-    this._clearedIds.add(id);
-  }
-
-  setInterval(fn: () => void, ms: number): ReturnType<typeof setInterval> {
-    const id = this._nextId++;
-    this._timers.push({
-      id,
-      deadline: this._now + ms,
-      fn,
-      type: "interval",
-      interval: ms,
-    });
-    return id as unknown as ReturnType<typeof setInterval>;
-  }
-
-  clearInterval(handle: ReturnType<typeof setInterval>): void {
     const id = handle as unknown as number;
     this._timers = this._timers.filter((t) => t.id !== id);
     this._clearedIds.add(id);
@@ -85,19 +60,8 @@ export class FakeClock implements Clock {
       // Collect all timers at this deadline.
       const toFire = this._timers.filter((t) => t.deadline <= this._now);
 
-      // Rebuild timer list: remove timeouts, reschedule intervals.
-      const remaining: TimerEntry[] = [];
-      for (const t of this._timers) {
-        if (t.deadline <= this._now) {
-          if (t.type === "interval" && t.interval !== undefined) {
-            remaining.push({ ...t, deadline: this._now + t.interval });
-          }
-          // timeout: drop it
-        } else {
-          remaining.push(t);
-        }
-      }
-      this._timers = remaining;
+      // Remove fired timers.
+      this._timers = this._timers.filter((t) => t.deadline > this._now);
 
       // Fire callbacks. A prior callback may clear a later timer at the same
       // deadline via clearTimeout/clearInterval — skip it if its ID was cleared.

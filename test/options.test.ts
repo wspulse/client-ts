@@ -8,8 +8,6 @@ describe("resolveOptions", () => {
     const opts = resolveOptions();
     expect(opts.maxMessageSize).toBe(1 << 20);
     expect(opts.writeWait).toBe(10_000);
-    expect(opts.heartbeat.pingPeriod).toBe(20_000);
-    expect(opts.heartbeat.pongWait).toBe(60_000);
     expect(opts.autoReconnect).toBeUndefined();
     expect(opts.dialHeaders).toEqual({});
     expect(opts.codec).toBe(JSONCodec);
@@ -70,14 +68,6 @@ describe("resolveOptions", () => {
     expect(onTransportDrop).toHaveBeenCalledWith(err);
   });
 
-  it("preserves custom heartbeat values", () => {
-    const opts = resolveOptions({
-      heartbeat: { pingPeriod: 10_000, pongWait: 30_000 },
-    });
-    expect(opts.heartbeat.pingPeriod).toBe(10_000);
-    expect(opts.heartbeat.pongWait).toBe(30_000);
-  });
-
   it("handles empty options object", () => {
     const opts = resolveOptions({});
     expect(opts.maxMessageSize).toBe(1 << 20);
@@ -120,49 +110,6 @@ describe("resolveOptions validation", () => {
   it("throws when writeWait exceeds 30s", () => {
     expect(() => resolveOptions({ writeWait: 31_000 })).toThrow(
       "wspulse: writeWait exceeds maximum (30s)",
-    );
-  });
-
-  // heartbeat.pingPeriod
-  it("throws on zero pingPeriod", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 0, pongWait: 60_000 } }),
-    ).toThrow("wspulse: heartbeat.pingPeriod must be positive");
-  });
-
-  it("throws when pingPeriod exceeds 1m", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 61_000, pongWait: 120_000 } }),
-    ).toThrow("wspulse: heartbeat.pingPeriod exceeds maximum (1m)");
-  });
-
-  // heartbeat.pongWait
-  it("throws on zero pongWait", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 1_000, pongWait: 0 } }),
-    ).toThrow("wspulse: heartbeat.pongWait must be positive");
-  });
-
-  it("throws when pongWait exceeds 2m", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 1_000, pongWait: 121_000 } }),
-    ).toThrow("wspulse: heartbeat.pongWait exceeds maximum (2m)");
-  });
-
-  // heartbeat: pingPeriod < pongWait
-  it("throws when pingPeriod equals pongWait", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 30_000, pongWait: 30_000 } }),
-    ).toThrow(
-      "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
-    );
-  });
-
-  it("throws when pingPeriod exceeds pongWait", () => {
-    expect(() =>
-      resolveOptions({ heartbeat: { pingPeriod: 60_000, pongWait: 20_000 } }),
-    ).toThrow(
-      "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
     );
   });
 
@@ -281,7 +228,6 @@ describe("resolveOptions validation", () => {
       resolveOptions({
         maxMessageSize: 64 << 20,
         writeWait: 30_000,
-        heartbeat: { pingPeriod: 60_000, pongWait: 120_000 },
         autoReconnect: {
           maxRetries: 32,
           baseDelay: 60_000,

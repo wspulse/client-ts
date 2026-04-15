@@ -1,11 +1,11 @@
 /**
- * Component tests — miscellaneous (concurrency, buffer, heartbeat).
+ * Component tests — miscellaneous (concurrency, buffer, write timeout).
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
 import type { Frame } from "../../src/frame.js";
-import { ConnectionLostError, SendBufferFullError } from "../../src/errors.js";
+import { SendBufferFullError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
 import { FakeClock } from "./fake-clock.js";
 
@@ -243,41 +243,5 @@ describe("component: misc", () => {
     expect(t.sent.length).toBe(1);
     const f = JSON.parse(t.sent[0] as string) as Frame;
     expect(f.event).toBe("browser-msg");
-  });
-
-  // Scenario 7: Pong timeout -> ConnectionLostError
-  it("pong timeout triggers ConnectionLostError", async () => {
-    let disconnectErr: Error | null | undefined;
-    let disconnectResolve: () => void = () => {};
-    const disconnected = new Promise<void>((r) => {
-      disconnectResolve = r;
-    });
-    const clock = new FakeClock();
-
-    const t = new MockTransport();
-    // Stop responding to pings so the pong deadline fires.
-    t.suppressPongs();
-
-    const { client } = await connectMock(
-      clock,
-      {
-        onDisconnect(err) {
-          disconnectErr = err;
-          disconnectResolve();
-        },
-        heartbeat: { pingPeriod: 50, pongWait: 150 },
-      },
-      t,
-    );
-
-    // Advance past the pong deadline (150 ms) to trigger ConnectionLostError.
-    await clock.advance(200);
-    await disconnected;
-
-    expect(disconnectErr).toBeInstanceOf(ConnectionLostError);
-
-    // Prevent afterEach from double-closing.
-    testClient = null;
-    void client;
   });
 });

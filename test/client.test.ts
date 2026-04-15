@@ -401,39 +401,6 @@ describe("maxMessageSize", () => {
   });
 });
 
-describe("heartbeat (pong timeout)", () => {
-  it("closes connection when server stops responding to pings", async () => {
-    // Create a server that swallows pong responses.
-    const server = new WebSocketServer({ port: 0 });
-    server.on("connection", (ws) => {
-      // Prevent server from auto-replying to client pings by overriding pong.
-      ws.pong = () => {};
-    });
-    const addr = server.address();
-    if (typeof addr === "string" || addr === null) throw new Error("bad addr");
-    testServer = server;
-
-    let transportDropped = false;
-    let disconnectErr: Error | null | undefined;
-
-    testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
-      heartbeat: { pingPeriod: 30, pongWait: 80 },
-      onTransportDrop: () => {
-        transportDropped = true;
-      },
-      onDisconnect: (err) => {
-        disconnectErr = err;
-      },
-    });
-
-    // Wait for pong timeout to fire (pongWait = 80ms).
-    await testClient.done;
-
-    expect(transportDropped).toBe(true);
-    expect(disconnectErr).toBeDefined();
-  });
-});
-
 describe("decode failure", () => {
   it("logs warning and continues processing valid frames", async () => {
     // Server that sends an invalid frame followed by a valid one.
