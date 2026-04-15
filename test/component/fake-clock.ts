@@ -2,7 +2,7 @@
  * FakeClock — deterministic timer implementation for component tests.
  *
  * Implements the {@link Clock} interface. Timers registered via
- * `setTimeout`/`setInterval` never fire automatically. Tests control
+ * `setTimeout` never fire automatically. Tests control
  * virtual time by calling `await advance(ms)`, which fires all callbacks
  * whose deadline falls within the advanced window (in deadline order) and
  * flushes the microtask queue after each firing so awaited Promises
@@ -38,7 +38,7 @@ export class FakeClock implements Clock {
    * Advance virtual time by `ms` milliseconds.
    *
    * Fires all registered callbacks whose deadline falls within the window,
-   * in deadline order. Intervals are rescheduled after firing. If a callback
+   * in deadline order. If a callback
    * clears another timer at the same deadline, the cleared timer is skipped.
    * After each batch, the microtask queue is flushed so that awaited Promises
    * propagate correctly before the next timer fires.

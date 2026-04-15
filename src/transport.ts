@@ -15,12 +15,10 @@ export interface Transport {
   onopen: ((ev: unknown) => void) | null;
   send(data: string | ArrayBuffer | Uint8Array | Blob): void;
   close(code?: number, reason?: string): void;
-  /** Node.js `ws` library: register event listener (ping, pong, etc.). */
+  /** Node.js `ws` library: register event listener. */
   on?(event: string, listener: (...args: unknown[]) => void): void;
   /** Node.js `ws` library: remove event listener. */
   removeListener?(event: string, listener: (...args: unknown[]) => void): void;
-  /** Node.js `ws` library: send a WebSocket Ping frame. */
-  ping?(data?: unknown, mask?: boolean, cb?: (err?: Error) => void): void;
   /** Node.js `ws` library: forcefully destroy the socket without close handshake. */
   terminate?(): void;
 }

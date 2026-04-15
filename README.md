@@ -165,7 +165,6 @@ const client = await connect(url, {
 | `onTransportDrop`    | `(err: Error \| null) => void`        | no-op             |
 | `autoReconnect`      | `{ maxRetries, baseDelay, maxDelay }` | disabled          |
 | `codec`              | `Codec`                               | `JSONCodec`       |
-| `heartbeat`          | `{ pingPeriod, pongWait }` (ms)       | 20 000 / 60 000   |
 | `writeWait`          | `number` (ms)                         | 10 000            |
 | `maxMessageSize`     | `number` (bytes)                      | 1 MiB (1 048 576) |
 | `dialHeaders`        | `Record<string, string>`              | `{}`              |

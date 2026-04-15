@@ -15,8 +15,8 @@ const WS_CLOSED = 3;
  * Mock transport that satisfies the {@link Transport} interface.
  *
  * Test code drives behaviour via `injectMessage()`, `injectClose()`,
- * `injectError()`, and `suppressPongs()`. Sent data is captured in
- * the `sent` array for assertions.
+ * and `injectError()`. Sent data is captured in the `sent` array
+ * for assertions.
  */
 export class MockTransport implements Transport {
   readyState: number = WS_OPEN;

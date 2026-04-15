@@ -19,9 +19,8 @@ reliably as part of `make check` (via `npx vitest run`).
 | 4   | Max retries exhausted -> `onDisconnect(RetriesExhaustedError)`     | `fires RetriesExhaustedError after max retries exhausted`              |
 | 5   | `close()` during reconnect -> loop stops, `onDisconnect(null)`     | `close() during reconnect fires onDisconnect(null)`                    |
 | 6   | `send()` on closed client -> `ConnectionClosedError`               | `send after close throws ConnectionClosedError`                        |
-| 7   | Heartbeat pong timeout -> `ConnectionLostError`                    | `pong timeout triggers ConnectionLostError`                            |
-| 8   | Concurrent sends: no data race or interleaving                     | N/A -- single-threaded JS (see Additional Tests)                       |
-| 9   | Concurrent `close()` + transport drop -> onDisconnect exactly once | `close() racing with transport drop fires onDisconnect exactly once`   |
+| 7   | Concurrent sends: no data race or interleaving                     | N/A -- single-threaded JS (see Additional Tests)                       |
+| 8   | Concurrent `close()` + transport drop -> onDisconnect exactly once | `close() racing with transport drop fires onDisconnect exactly once`   |
 
 ## Additional Tests
 
@@ -39,7 +38,7 @@ reliably as part of `make check` (via `npx vitest run`).
 | `onTransportRestore does not fire on initial connect` | Restore callback reserved for reconnect only |
 | `passes URL with query params to dialer`              | URL forwarding to dialer function            |
 
-**Total: 19 component tests** (8 scenarios + 11 additional; scenario 8 N/A -> moved to additional).
+**Total: 18 component tests** (7 scenarios + 11 additional; scenario 7 N/A -> moved to additional).
 
 ## Legacy Integration Tests
 
