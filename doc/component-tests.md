@@ -29,7 +29,7 @@ reliably as part of `make check` (via `npx vitest run`).
 | `round-trips all Frame fields (event, payload)`       | Full Frame field fidelity through codec      |
 | `handles dial failure gracefully`                     | Dialer error rejects connect() Promise       |
 | `sends multiple frames and receives them in order`    | Message ordering preservation                |
-| `concurrent sends do not race`                        | 50 senders x 5 messages each (scenario 8)    |
+| `concurrent sends do not race`                        | 50 senders x 5 messages each (scenario 7)    |
 | `detects server-initiated close`                      | Transport close -> `onDisconnect(Error)`     |
 | `onDisconnect fires exactly once on close`            | User-initiated close -> single callback      |
 | `close is idempotent`                                 | Multiple `close()` calls -> single callback  |
@@ -38,7 +38,7 @@ reliably as part of `make check` (via `npx vitest run`).
 | `onTransportRestore does not fire on initial connect` | Restore callback reserved for reconnect only |
 | `passes URL with query params to dialer`              | URL forwarding to dialer function            |
 
-**Total: 18 component tests** (7 scenarios + 11 additional; scenario 7 N/A -> moved to additional).
+**Total: 18 component tests** (7 scenarios + 11 additional; scenario 7 is N/A as a dedicated scenario — covered by `concurrent sends do not race` in Additional Tests).
 
 ## Legacy Integration Tests
 
