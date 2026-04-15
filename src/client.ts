@@ -538,8 +538,10 @@ class WspulseClient implements Client {
     this.pongHandlerWs = ws;
     ws.on("pong", this.pongHandler);
 
-    // Send an initial Ping immediately so the pong deadline starts from a real
-    // ping, not from connection open.
+    // Send an initial Ping so the pong deadline is anchored to an actual
+    // round-trip. Without this, the deadline starts counting from connection
+    // open — if pingInterval > writeTimeout the deadline would expire before
+    // the first periodic Ping fires.
     if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
       ws.ping();
     }

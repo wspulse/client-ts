@@ -119,6 +119,18 @@ describe("resolveOptions validation", () => {
     );
   });
 
+  it("throws on NaN pingInterval", () => {
+    expect(() => resolveOptions({ pingInterval: NaN })).toThrow(
+      "wspulse: pingInterval must be a finite number",
+    );
+  });
+
+  it("throws on Infinity pingInterval", () => {
+    expect(() => resolveOptions({ pingInterval: Infinity })).toThrow(
+      "wspulse: pingInterval must be a finite number",
+    );
+  });
+
   // writeTimeout
   it("throws on zero writeTimeout", () => {
     expect(() => resolveOptions({ writeTimeout: 0 })).toThrow(
@@ -135,6 +147,18 @@ describe("resolveOptions validation", () => {
   it("throws when writeTimeout exceeds 30s", () => {
     expect(() => resolveOptions({ writeTimeout: 31_000 })).toThrow(
       "wspulse: writeTimeout exceeds maximum (30s)",
+    );
+  });
+
+  it("throws on NaN writeTimeout", () => {
+    expect(() => resolveOptions({ writeTimeout: NaN })).toThrow(
+      "wspulse: writeTimeout must be a finite number",
+    );
+  });
+
+  it("throws on Infinity writeTimeout", () => {
+    expect(() => resolveOptions({ writeTimeout: Infinity })).toThrow(
+      "wspulse: writeTimeout must be a finite number",
     );
   });
 

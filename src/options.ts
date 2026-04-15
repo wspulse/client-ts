@@ -80,6 +80,9 @@ export interface ClientOptions {
    * Deadline for a single write operation, in milliseconds. Also used as the
    * pong deadline — if no Pong arrives within this duration after a Ping, the
    * connection is considered dead. Default: 10 000 (10 s). Must be in (0, 30 000].
+   *
+   * Setting this value below the expected server round-trip time will cause
+   * spurious heartbeat disconnects even when the server is healthy.
    */
   writeTimeout?: number;
   /** Max inbound message size in bytes. Default: 1 MiB (1 048 576). */
