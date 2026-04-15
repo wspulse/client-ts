@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+
+- **Heartbeat API flattened**: removed `HeartbeatOptions` interface and `heartbeat` option. Replaced by top-level `pingInterval` (was `heartbeat.pingPeriod`) and `writeTimeout` (was `writeWait`). Pong deadline is now implicit in `writeTimeout` (was separate `heartbeat.pongWait`).
+- Renamed `writeWait` option to `writeTimeout` for naming consistency across SDKs.
+- Validation error messages updated: `wspulse: heartbeat.pingPeriod ...` becomes `wspulse: pingInterval ...`; `wspulse: writeWait ...` becomes `wspulse: writeTimeout ...`.
+
+### Removed
+
+- `HeartbeatOptions` exported type.
+- `heartbeat.pongWait` option (pong deadline now uses `writeTimeout`).
+
 ---
 
 ## [0.5.2] - 2026-04-09

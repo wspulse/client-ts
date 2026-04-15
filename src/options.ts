@@ -22,23 +22,6 @@ export interface AutoReconnectOptions {
 }
 
 /**
- * Client-side heartbeat configuration.
- *
- * The client sends WebSocket Ping frames every `pingPeriod` ms.
- * If no Pong is received within `pongWait` ms, the connection is considered
- * dead and the transport is closed.
- *
- * Note: browser environments have no programmatic Ping/Pong API — heartbeat
- * monitoring is a no-op there; the browser engine handles keepalive internally.
- */
-export interface HeartbeatOptions {
-  /** Interval between client-sent Ping frames, in milliseconds. */
-  pingPeriod: number;
-  /** Pong deadline in milliseconds; connection closes if no Pong is received. */
-  pongWait: number;
-}
-
-/**
  * Options accepted by {@link connect}.
  *
  * All callbacks default to no-ops. Callbacks are invoked synchronously in
@@ -85,10 +68,20 @@ export interface ClientOptions {
   codec?: Codec;
   /** Enable exponential backoff reconnection. Disabled by default. */
   autoReconnect?: AutoReconnectOptions;
-  /** Heartbeat timing expectations. Defaults to 20 s ping / 60 s pong. */
-  heartbeat?: HeartbeatOptions;
-  /** Write deadline in milliseconds. Default: 10 000 (10 s). */
-  writeWait?: number;
+  /**
+   * Interval between client-sent Ping frames, in milliseconds.
+   * Default: 20 000 (20 s). Must be in (0, 60 000].
+   *
+   * Browser environments have no programmatic Ping/Pong API — heartbeat
+   * monitoring is a no-op there; the browser engine handles keepalive internally.
+   */
+  pingInterval?: number;
+  /**
+   * Deadline for a single write operation, in milliseconds. Also used as the
+   * pong deadline — if no Pong arrives within this duration after a Ping, the
+   * connection is considered dead. Default: 10 000 (10 s). Must be in (0, 30 000].
+   */
+  writeTimeout?: number;
   /** Max inbound message size in bytes. Default: 1 MiB (1 048 576). */
   maxMessageSize?: number;
   /**
@@ -128,14 +121,11 @@ export interface ClientOptions {
   _clock?: Clock;
 }
 
-/** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
-const DEFAULT_HEARTBEAT: HeartbeatOptions = {
-  pingPeriod: 20_000,
-  pongWait: 60_000,
-};
+/** @internal Default ping interval: 20 seconds. */
+const DEFAULT_PING_INTERVAL = 20_000;
 
-/** @internal Default write deadline: 10 seconds. */
-const DEFAULT_WRITE_WAIT = 10_000;
+/** @internal Default write timeout: 10 seconds. */
+const DEFAULT_WRITE_TIMEOUT = 10_000;
 
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
@@ -147,9 +137,8 @@ const DEFAULT_SEND_BUFFER_SIZE = 256;
 const MAX_SEND_BUFFER_SIZE = 4096;
 
 /** @internal Upper bound constants for config validation. */
-const MAX_PING_PERIOD = 60_000;
-const MAX_PONG_WAIT = 120_000;
-const MAX_WRITE_WAIT = 30_000;
+const MAX_PING_INTERVAL = 60_000;
+const MAX_WRITE_TIMEOUT = 30_000;
 const MAX_MSG_SIZE_BYTES = 64 << 20;
 const MAX_BASE_DELAY = 60_000;
 const MAX_DELAY_LIMIT = 300_000;
@@ -168,8 +157,8 @@ export interface ResolvedOptions {
   onTransportDrop: (err: Error | null) => void;
   codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
-  heartbeat: HeartbeatOptions;
-  writeWait: number;
+  pingInterval: number;
+  writeTimeout: number;
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
   sendBufferSize: number;
@@ -199,45 +188,27 @@ function validateOptions(opts: ClientOptions): void {
     }
   }
 
-  if (opts.writeWait !== undefined) {
-    if (!Number.isFinite(opts.writeWait)) {
-      throw new Error("wspulse: writeWait must be a finite number");
+  if (opts.pingInterval !== undefined) {
+    if (!Number.isFinite(opts.pingInterval)) {
+      throw new Error("wspulse: pingInterval must be a finite number");
     }
-    if (opts.writeWait <= 0) {
-      throw new Error("wspulse: writeWait must be positive");
+    if (opts.pingInterval <= 0) {
+      throw new Error("wspulse: pingInterval must be positive");
     }
-    if (opts.writeWait > MAX_WRITE_WAIT) {
-      throw new Error("wspulse: writeWait exceeds maximum (30s)");
+    if (opts.pingInterval > MAX_PING_INTERVAL) {
+      throw new Error("wspulse: pingInterval exceeds maximum (1m)");
     }
   }
 
-  if (opts.heartbeat !== undefined) {
-    if (typeof opts.heartbeat !== "object" || opts.heartbeat === null) {
-      throw new Error("wspulse: heartbeat must be an object");
+  if (opts.writeTimeout !== undefined) {
+    if (!Number.isFinite(opts.writeTimeout)) {
+      throw new Error("wspulse: writeTimeout must be a finite number");
     }
-    const hb = opts.heartbeat;
-    if (!Number.isFinite(hb.pingPeriod)) {
-      throw new Error("wspulse: heartbeat.pingPeriod must be a finite number");
+    if (opts.writeTimeout <= 0) {
+      throw new Error("wspulse: writeTimeout must be positive");
     }
-    if (hb.pingPeriod <= 0) {
-      throw new Error("wspulse: heartbeat.pingPeriod must be positive");
-    }
-    if (hb.pingPeriod > MAX_PING_PERIOD) {
-      throw new Error("wspulse: heartbeat.pingPeriod exceeds maximum (1m)");
-    }
-    if (!Number.isFinite(hb.pongWait)) {
-      throw new Error("wspulse: heartbeat.pongWait must be a finite number");
-    }
-    if (hb.pongWait <= 0) {
-      throw new Error("wspulse: heartbeat.pongWait must be positive");
-    }
-    if (hb.pongWait > MAX_PONG_WAIT) {
-      throw new Error("wspulse: heartbeat.pongWait exceeds maximum (2m)");
-    }
-    if (hb.pingPeriod >= hb.pongWait) {
-      throw new Error(
-        "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
-      );
+    if (opts.writeTimeout > MAX_WRITE_TIMEOUT) {
+      throw new Error("wspulse: writeTimeout exceeds maximum (30s)");
     }
   }
 
@@ -311,8 +282,8 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     onTransportDrop: opts?.onTransportDrop ?? noop,
     codec: opts?.codec ?? JSONCodec,
     autoReconnect: opts?.autoReconnect,
-    heartbeat: opts?.heartbeat ?? { ...DEFAULT_HEARTBEAT },
-    writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
+    pingInterval: opts?.pingInterval ?? DEFAULT_PING_INTERVAL,
+    writeTimeout: opts?.writeTimeout ?? DEFAULT_WRITE_TIMEOUT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},
     sendBufferSize: opts?.sendBufferSize ?? DEFAULT_SEND_BUFFER_SIZE,

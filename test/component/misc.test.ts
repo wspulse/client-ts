@@ -98,8 +98,8 @@ describe("component: misc", () => {
     }).toThrow(SendBufferFullError);
   });
 
-  // Write timeout: stalled socket triggers onTransportDrop within writeWait
-  it("stalled socket triggers onTransportDrop within writeWait", async () => {
+  // Write timeout: stalled socket triggers onTransportDrop within writeTimeout
+  it("stalled socket triggers onTransportDrop within writeTimeout", async () => {
     const clock = new FakeClock();
     let dropErr: Error | null | undefined;
     let dropResolve: () => void = () => {};
@@ -114,7 +114,7 @@ describe("component: misc", () => {
     const { client } = await connectMock(
       clock,
       {
-        writeWait: 100,
+        writeTimeout: 100,
         onTransportDrop(err) {
           dropErr = err;
           dropResolve();
@@ -129,7 +129,7 @@ describe("component: misc", () => {
     // Advance past the drain timer (5 ms) so flushSendBuffer fires.
     await clock.advance(10);
 
-    // The send is now stalled. Advance past writeWait (100 ms) to trigger timeout.
+    // The send is now stalled. Advance past writeTimeout (100 ms) to trigger timeout.
     await clock.advance(100);
     await dropped;
 
@@ -160,7 +160,7 @@ describe("component: misc", () => {
 
     const dialer = new MockDialer([t1, t2]);
     const client = await connect("ws://mock/ws", {
-      writeWait: 100,
+      writeTimeout: 100,
       autoReconnect: { maxRetries: 3, baseDelay: 10, maxDelay: 50 },
       onMessage(frame) {
         received.push(frame);
@@ -180,7 +180,7 @@ describe("component: misc", () => {
     // Advance past drain timer (5 ms) → flush starts → stalls.
     await clock.advance(10);
 
-    // Advance past writeWait (100 ms) → timeout → transport drop → reconnect.
+    // Advance past writeTimeout (100 ms) → timeout → transport drop → reconnect.
     // Then advance past backoff delay to let reconnect succeed.
     await clock.advance(200);
     await restored;
@@ -228,7 +228,7 @@ describe("component: misc", () => {
 
     const dialer = new MockDialer([t]);
     const client = await connect("ws://mock/ws", {
-      writeWait: 100,
+      writeTimeout: 100,
       _dialer: dialer.dial,
       _clock: clock,
     });
@@ -265,7 +265,8 @@ describe("component: misc", () => {
           disconnectErr = err;
           disconnectResolve();
         },
-        heartbeat: { pingPeriod: 50, pongWait: 150 },
+        pingInterval: 50,
+        writeTimeout: 150,
       },
       t,
     );

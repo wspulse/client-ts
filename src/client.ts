@@ -502,8 +502,8 @@ class WspulseClient implements Client {
   /**
    * Start the heartbeat mechanism on a WebSocket.
    *
-   * Node.js (`ws` library): sends Ping frames every `pingPeriod` ms, and
-   * sets a pong deadline timer of `pongWait` ms that is reset on each Pong.
+   * Node.js (`ws` library): sends Ping frames every `pingInterval` ms, and
+   * sets a pong deadline timer of `writeTimeout` ms that is reset on each Pong.
    * If the deadline fires, the WebSocket is closed (triggering transport drop).
    *
    * Browser: Ping/Pong is handled automatically by the browser engine.
@@ -514,7 +514,7 @@ class WspulseClient implements Client {
     // Only meaningful when ws supports .on() and .ping() (Node.js ws lib).
     if (typeof ws.on !== "function" || typeof ws.ping !== "function") return;
 
-    const { pingPeriod, pongWait } = this.opts.heartbeat;
+    const { pingInterval, writeTimeout } = this.opts;
 
     // Reset (or start) the pong deadline timer.
     const resetPongDeadline = () => {
@@ -527,7 +527,7 @@ class WspulseClient implements Client {
         } else {
           ws.close(WS_CLOSE_GOING_AWAY, "pong timeout");
         }
-      }, pongWait);
+      }, writeTimeout);
     };
 
     // Listen for Pong frames to reset the deadline.
@@ -539,8 +539,7 @@ class WspulseClient implements Client {
     ws.on("pong", this.pongHandler);
 
     // Send an initial Ping immediately so the pong deadline starts from a real
-    // ping, not from connection open. This prevents false timeouts when
-    // pingPeriod > pongWait.
+    // ping, not from connection open.
     if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
       ws.ping();
     }
@@ -551,7 +550,7 @@ class WspulseClient implements Client {
       if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
         ws.ping();
       }
-    }, pingPeriod);
+    }, pingInterval);
   }
 
   /** Stop heartbeat timers (ping + pong deadline) and remove pong listener. */
@@ -584,7 +583,7 @@ class WspulseClient implements Client {
   /**
    * Flush all buffered frames to the WebSocket serially with per-write
    * timeout. On Node.js each frame is sent via `sendOneFrame` so a
-   * stalled socket is detected within `writeWait`. In browsers `send()`
+   * stalled socket is detected within `writeTimeout`. In browsers `send()`
    * is fire-and-forget (no completion callback) so no deadline applies.
    *
    * Stops draining if the socket is not open (reconnect will restart it).
@@ -620,7 +619,7 @@ class WspulseClient implements Client {
    * Send a single frame with write-deadline enforcement.
    *
    * On Node.js (`ws` library): uses the callback form of `send()` and
-   * races it against a `writeWait` timeout. On timeout the socket is
+   * races it against a `writeTimeout` timeout. On timeout the socket is
    * closed, which triggers `handleTransportDrop`.
    *
    * In browsers: `send()` is fire-and-forget; returns `true` immediately.
@@ -641,7 +640,7 @@ class WspulseClient implements Client {
       return Promise.resolve(true);
     }
 
-    // Node.js ws: race callback vs writeWait timeout.
+    // Node.js ws: race callback vs writeTimeout.
     return new Promise<boolean>((resolve) => {
       let settled = false;
       const timer = this.clock.setTimeout(() => {
@@ -653,7 +652,7 @@ class WspulseClient implements Client {
           // Already closed.
         }
         resolve(false);
-      }, this.opts.writeWait);
+      }, this.opts.writeTimeout);
       try {
         (
           ws.send as (d: string | Uint8Array, cb: (err?: Error) => void) => void

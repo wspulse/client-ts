@@ -417,7 +417,8 @@ describe("heartbeat (pong timeout)", () => {
     let disconnectErr: Error | null | undefined;
 
     testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
-      heartbeat: { pingPeriod: 30, pongWait: 80 },
+      pingInterval: 30,
+      writeTimeout: 80,
       onTransportDrop: () => {
         transportDropped = true;
       },
@@ -426,7 +427,7 @@ describe("heartbeat (pong timeout)", () => {
       },
     });
 
-    // Wait for pong timeout to fire (pongWait = 80ms).
+    // Wait for pong timeout to fire (writeTimeout = 80ms).
     await testClient.done;
 
     expect(transportDropped).toBe(true);

@@ -3,11 +3,7 @@ export type { Client } from "./client.js";
 export type { Transport } from "./transport.js";
 export type { Codec } from "./codec.js";
 export { JSONCodec } from "./codec.js";
-export type {
-  ClientOptions,
-  AutoReconnectOptions,
-  HeartbeatOptions,
-} from "./options.js";
+export type { ClientOptions, AutoReconnectOptions } from "./options.js";
 export { connect } from "./client.js";
 export { backoff } from "./backoff.js";
 export {
