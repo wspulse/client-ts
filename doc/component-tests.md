@@ -38,7 +38,7 @@ reliably as part of `make check` (via `npx vitest run`).
 | `onTransportRestore does not fire on initial connect` | Restore callback reserved for reconnect only |
 | `passes URL with query params to dialer`              | URL forwarding to dialer function            |
 
-**Total: 18 component tests** (7 scenarios + 11 additional; scenario 7 is N/A as a dedicated scenario — covered by `concurrent sends do not race` in Additional Tests).
+**Coverage rows: 18** (7 scenarios + 11 additional). This is the count of documented coverage rows, not the full `it(...)` test count under `test/component/`. Scenario 7 is N/A as a dedicated scenario — covered by `concurrent sends do not race` in Additional Tests.
 
 ## Legacy Integration Tests
 
