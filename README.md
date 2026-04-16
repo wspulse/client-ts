@@ -195,7 +195,6 @@ try {
 - **Transport drop callback** — `onTransportDrop` fires on every transport death (with the error) and on a clean `close()` call (with `null`). Fires exactly once per transport lifecycle. Useful for metrics and logging.
 - **Transport restore callback** — `onTransportRestore` fires after a successful reconnect (not on the initial connect). Useful for re-subscribing or refreshing state.
 - **Permanent disconnect callback** — `onDisconnect` fires exactly once when the client is truly done (`close()` called, retries exhausted, or connection lost without auto-reconnect).
-- **Heartbeat** — Client-side Ping/Pong keeps the connection alive and detects silently-dead servers. Node.js only (browsers handle Ping/Pong automatically at the protocol level).
 - **Max message size** — Inbound messages exceeding `maxMessageSize` are rejected with close code 1009.
 - **Backpressure** — bounded 256-frame send buffer; throws `SendBufferFullError` when full.
 - **`done` Promise** — resolves when the client reaches CLOSED state. Await it to block until permanently disconnected.
@@ -208,7 +207,6 @@ try {
 | --------------------- | ----------------------------------- | -------------------------------------------- |
 | WebSocket transport   | `ws` package (peer dep)             | Native `WebSocket` API                       |
 | `dialHeaders`         | ✅ Passed as HTTP headers           | ⚠️ Silently ignored (browser API limitation) |
-| Heartbeat (Ping/Pong) | ✅ Client sends Ping, monitors Pong | ⚠️ No-op (browser handles automatically)     |
 | `maxMessageSize`      | ✅                                  | ✅                                           |
 | Auto-reconnect        | ✅                                  | ✅                                           |
 
