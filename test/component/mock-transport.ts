@@ -15,8 +15,8 @@ const WS_CLOSED = 3;
  * Mock transport that satisfies the {@link Transport} interface.
  *
  * Test code drives behaviour via `injectMessage()`, `injectClose()`,
- * `injectError()`, and `suppressPongs()`. Sent data is captured in
- * the `sent` array for assertions.
+ * and `injectError()`. Sent data is captured in the `sent` array
+ * for assertions.
  */
 export class MockTransport implements Transport {
   readyState: number = WS_OPEN;
@@ -31,9 +31,6 @@ export class MockTransport implements Transport {
 
   /** Event listeners registered via `on()` (Node.js ws-style). */
   private eventListeners = new Map<string, Set<(...args: unknown[]) => void>>();
-
-  /** When true, `ping()` does not trigger pong handlers. */
-  private pongsDisabled = false;
 
   /** When true, `send()` callback is never called (simulates stalled socket). */
   private sendsStalled = false;
@@ -76,16 +73,6 @@ export class MockTransport implements Transport {
     this.eventListeners.get(event)?.delete(listener);
   }
 
-  ping(_data?: unknown, _mask?: boolean, cb?: (err?: Error) => void): void {
-    cb?.();
-    if (!this.pongsDisabled) {
-      // Simulate pong arriving after a microtask (network round-trip).
-      queueMicrotask(() => {
-        this.eventListeners.get("pong")?.forEach((h) => h());
-      });
-    }
-  }
-
   terminate(): void {
     this.close(1001, "terminated");
   }
@@ -106,11 +93,6 @@ export class MockTransport implements Transport {
   /** Simulate a transport error. */
   injectError(): void {
     this.onerror?.({});
-  }
-
-  /** Stop responding to pings (simulates pong timeout). */
-  suppressPongs(): void {
-    this.pongsDisabled = true;
   }
 
   /** Stall all future sends — callback is never invoked (simulates blocked socket). */

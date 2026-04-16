@@ -2,7 +2,12 @@
 
 ## [Unreleased]
 
----
+## [0.6.0] - 2026-04-16
+
+### Removed
+
+- **BREAKING**: `HeartbeatOptions` interface and `ClientOptions.heartbeat` option — client-side ping is removed; dead-connection detection is now handled exclusively by the Hub's server-side heartbeat.
+- **BREAKING**: Removed optional `ping?()` from the exported `Transport` interface — no longer needed without client-side heartbeat.
 
 ## [0.5.2] - 2026-04-09
 
@@ -14,15 +19,11 @@
 
 - `close()` now discards unsent buffered frames instead of attempting a best-effort flush. Aligns with the behaviour contract: frames accepted by `send()` but not yet written to the transport are discarded on close.
 
----
-
 ## [0.5.1] - 2026-04-06
 
 ### Fixed
 
 - Normal write path now enforces `writeWait` per frame on Node.js. Previously only the shutdown flush used `sendWithTimeout`; a stalled socket during regular sends would block indefinitely without triggering `onTransportDrop`. Browser path is unchanged (fire-and-forget).
-
----
 
 ## [0.5.0] - 2026-04-04
 
@@ -46,8 +47,6 @@
 
 - **BREAKING**: `Frame.id` field removed — transport layer does not use it. Applications needing message IDs should use payload.
 
----
-
 ## [0.4.0] - 2026-03-24
 
 ### Added
@@ -57,8 +56,6 @@
 ### Removed
 
 - `onReconnect` callback option (replaced by `onTransportRestore`) (**breaking**)
-
----
 
 ## [0.3.0] - 2026-03-22
 
@@ -75,8 +72,6 @@
   validation contract are now enforced at construction time.
 - Test coverage for error classes and callback invocations.
 
----
-
 ## [0.2.2] - 2026-03-21
 
 ### Fixed
@@ -88,8 +83,6 @@
 
 - CI/CD: auto-label on PR opened, tag-triggered GitHub Release with
   `release.yml` changelog categories.
-
----
 
 ## [0.2.1] - 2026-03-21
 
@@ -108,8 +101,6 @@
 - CI/CD: auto-label on PR opened, tag-triggered GitHub Release, `release.yml`
   changelog categories.
 
----
-
 ## [0.2.0] - 2026-03-16
 
 ### Changed
@@ -122,8 +113,6 @@
 ### Added
 
 - `SendBufferFullError` error class
-
----
 
 ## [0.1.0] - 2026-03-16
 
@@ -145,3 +134,15 @@
 - 44 unit tests across 6 test files (integration tests run separately)
 - CI workflow: lint → type-check → test on Node 20 and 22 (3-job matrix)
 - README with quick-start, API reference, and platform notes
+
+[Unreleased]: https://github.com/wspulse/client-ts/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/wspulse/client-ts/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/wspulse/client-ts/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/wspulse/client-ts/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/wspulse/client-ts/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/wspulse/client-ts/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/wspulse/client-ts/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/wspulse/client-ts/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/wspulse/client-ts/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/wspulse/client-ts/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/wspulse/client-ts/releases/tag/v0.1.0

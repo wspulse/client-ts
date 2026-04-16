@@ -22,23 +22,6 @@ export interface AutoReconnectOptions {
 }
 
 /**
- * Client-side heartbeat configuration.
- *
- * The client sends WebSocket Ping frames every `pingPeriod` ms.
- * If no Pong is received within `pongWait` ms, the connection is considered
- * dead and the transport is closed.
- *
- * Note: browser environments have no programmatic Ping/Pong API — heartbeat
- * monitoring is a no-op there; the browser engine handles keepalive internally.
- */
-export interface HeartbeatOptions {
-  /** Interval between client-sent Ping frames, in milliseconds. */
-  pingPeriod: number;
-  /** Pong deadline in milliseconds; connection closes if no Pong is received. */
-  pongWait: number;
-}
-
-/**
  * Options accepted by {@link connect}.
  *
  * All callbacks default to no-ops. Callbacks are invoked synchronously in
@@ -85,8 +68,6 @@ export interface ClientOptions {
   codec?: Codec;
   /** Enable exponential backoff reconnection. Disabled by default. */
   autoReconnect?: AutoReconnectOptions;
-  /** Heartbeat timing expectations. Defaults to 20 s ping / 60 s pong. */
-  heartbeat?: HeartbeatOptions;
   /** Write deadline in milliseconds. Default: 10 000 (10 s). */
   writeWait?: number;
   /** Max inbound message size in bytes. Default: 1 MiB (1 048 576). */
@@ -121,18 +102,12 @@ export interface ClientOptions {
   /**
    * Custom timer clock for testing.
    *
-   * @internal Test-only. When provided, all `setTimeout`/`setInterval` calls
-   * in the client are routed through this clock instead of the global timer
-   * functions. The default (`undefined`) falls back to {@link defaultClock}.
+   * @internal Test-only. When provided, all `setTimeout` calls in the client
+   * are routed through this clock instead of the global timer functions.
+   * The default (`undefined`) falls back to {@link defaultClock}.
    */
   _clock?: Clock;
 }
-
-/** @internal Default heartbeat timing: 20 s ping, 60 s pong. */
-const DEFAULT_HEARTBEAT: HeartbeatOptions = {
-  pingPeriod: 20_000,
-  pongWait: 60_000,
-};
 
 /** @internal Default write deadline: 10 seconds. */
 const DEFAULT_WRITE_WAIT = 10_000;
@@ -147,8 +122,6 @@ const DEFAULT_SEND_BUFFER_SIZE = 256;
 const MAX_SEND_BUFFER_SIZE = 4096;
 
 /** @internal Upper bound constants for config validation. */
-const MAX_PING_PERIOD = 60_000;
-const MAX_PONG_WAIT = 120_000;
 const MAX_WRITE_WAIT = 30_000;
 const MAX_MSG_SIZE_BYTES = 64 << 20;
 const MAX_BASE_DELAY = 60_000;
@@ -168,7 +141,6 @@ export interface ResolvedOptions {
   onTransportDrop: (err: Error | null) => void;
   codec: Codec;
   autoReconnect: AutoReconnectOptions | undefined;
-  heartbeat: HeartbeatOptions;
   writeWait: number;
   maxMessageSize: number;
   dialHeaders: Record<string, string>;
@@ -208,36 +180,6 @@ function validateOptions(opts: ClientOptions): void {
     }
     if (opts.writeWait > MAX_WRITE_WAIT) {
       throw new Error("wspulse: writeWait exceeds maximum (30s)");
-    }
-  }
-
-  if (opts.heartbeat !== undefined) {
-    if (typeof opts.heartbeat !== "object" || opts.heartbeat === null) {
-      throw new Error("wspulse: heartbeat must be an object");
-    }
-    const hb = opts.heartbeat;
-    if (!Number.isFinite(hb.pingPeriod)) {
-      throw new Error("wspulse: heartbeat.pingPeriod must be a finite number");
-    }
-    if (hb.pingPeriod <= 0) {
-      throw new Error("wspulse: heartbeat.pingPeriod must be positive");
-    }
-    if (hb.pingPeriod > MAX_PING_PERIOD) {
-      throw new Error("wspulse: heartbeat.pingPeriod exceeds maximum (1m)");
-    }
-    if (!Number.isFinite(hb.pongWait)) {
-      throw new Error("wspulse: heartbeat.pongWait must be a finite number");
-    }
-    if (hb.pongWait <= 0) {
-      throw new Error("wspulse: heartbeat.pongWait must be positive");
-    }
-    if (hb.pongWait > MAX_PONG_WAIT) {
-      throw new Error("wspulse: heartbeat.pongWait exceeds maximum (2m)");
-    }
-    if (hb.pingPeriod >= hb.pongWait) {
-      throw new Error(
-        "wspulse: heartbeat.pingPeriod must be strictly less than heartbeat.pongWait",
-      );
     }
   }
 
@@ -311,7 +253,6 @@ export function resolveOptions(opts?: ClientOptions): ResolvedOptions {
     onTransportDrop: opts?.onTransportDrop ?? noop,
     codec: opts?.codec ?? JSONCodec,
     autoReconnect: opts?.autoReconnect,
-    heartbeat: opts?.heartbeat ?? { ...DEFAULT_HEARTBEAT },
     writeWait: opts?.writeWait ?? DEFAULT_WRITE_WAIT,
     maxMessageSize: opts?.maxMessageSize ?? DEFAULT_MAX_MESSAGE_SIZE,
     dialHeaders: opts?.dialHeaders ?? {},

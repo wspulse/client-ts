@@ -213,18 +213,6 @@ class WspulseClient implements Client {
   /** Whether a transport drop is being handled. Suppresses onTransportDrop(null) during shutdown. */
   private reconnecting = false;
 
-  /** Pong deadline timer — fires when server stops responding. */
-  private pongDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /** Ping interval timer — sends WebSocket Ping frames (Node.js only). */
-  private pingTimer: ReturnType<typeof setInterval> | null = null;
-
-  /** Stored pong handler reference for cleanup (prevents listener leak on reconnect). */
-  private pongHandler: (() => void) | null = null;
-
-  /** WebSocket instance the pong handler is attached to (for removeListener). */
-  private pongHandlerWs: Transport | null = null;
-
   /** Timer clock — replaced in tests for deterministic behaviour. @internal */
   private readonly clock: Clock;
 
@@ -249,7 +237,6 @@ class WspulseClient implements Client {
     }
 
     this.attachListeners(ws);
-    this.startHeartbeat(ws);
   }
 
   /**
@@ -363,7 +350,6 @@ class WspulseClient implements Client {
     if (this.closed) return;
 
     this.stopDrain();
-    this.stopHeartbeat();
     const dropErr = new Error("wspulse: transport closed unexpectedly");
     // Set reconnecting before firing the callback so that a synchronous
     // close() call inside onTransportDrop sees the correct state regardless
@@ -428,14 +414,13 @@ class WspulseClient implements Client {
         return;
       }
 
-      // Swap connection and restart listeners + drain + heartbeat.
+      // Swap connection and restart listeners + drain.
       this.ws = newWs;
       if (this.opts.codec.binaryType === "binary") {
         (newWs as unknown as { binaryType: string }).binaryType = "arraybuffer";
       }
       this.attachListeners(newWs);
       this.startDrain();
-      this.startHeartbeat(newWs);
 
       // Fire onTransportRestore outside the dial try/catch so a throwing
       // callback does not get misinterpreted as a dial failure.
@@ -494,90 +479,6 @@ class WspulseClient implements Client {
     if (this.drainTimer !== null) {
       this.clock.clearTimeout(this.drainTimer);
       this.drainTimer = null;
-    }
-  }
-
-  // ── heartbeat ───────────────────────────────────────────────────────────
-
-  /**
-   * Start the heartbeat mechanism on a WebSocket.
-   *
-   * Node.js (`ws` library): sends Ping frames every `pingPeriod` ms, and
-   * sets a pong deadline timer of `pongWait` ms that is reset on each Pong.
-   * If the deadline fires, the WebSocket is closed (triggering transport drop).
-   *
-   * Browser: Ping/Pong is handled automatically by the browser engine.
-   * There is no programmatic access to ping/pong frames, so heartbeat
-   * monitoring is a no-op in browser environments.
-   */
-  private startHeartbeat(ws: Transport): void {
-    // Only meaningful when ws supports .on() and .ping() (Node.js ws lib).
-    if (typeof ws.on !== "function" || typeof ws.ping !== "function") return;
-
-    const { pingPeriod, pongWait } = this.opts.heartbeat;
-
-    // Reset (or start) the pong deadline timer.
-    const resetPongDeadline = () => {
-      this.clearPongDeadline();
-      this.pongDeadlineTimer = this.clock.setTimeout(() => {
-        // Server failed to respond — forcefully destroy the socket so the
-        // close event fires immediately without waiting for a close handshake.
-        if (typeof ws.terminate === "function") {
-          ws.terminate();
-        } else {
-          ws.close(WS_CLOSE_GOING_AWAY, "pong timeout");
-        }
-      }, pongWait);
-    };
-
-    // Listen for Pong frames to reset the deadline.
-    // Store the handler so it can be removed in stopHeartbeat().
-    this.pongHandler = () => {
-      resetPongDeadline();
-    };
-    this.pongHandlerWs = ws;
-    ws.on("pong", this.pongHandler);
-
-    // Send an initial Ping immediately so the pong deadline starts from a real
-    // ping, not from connection open. This prevents false timeouts when
-    // pingPeriod > pongWait.
-    if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
-      ws.ping();
-    }
-    resetPongDeadline();
-
-    // Periodically send Ping frames.
-    this.pingTimer = this.clock.setInterval(() => {
-      if (ws.readyState === WS_OPEN && typeof ws.ping === "function") {
-        ws.ping();
-      }
-    }, pingPeriod);
-  }
-
-  /** Stop heartbeat timers (ping + pong deadline) and remove pong listener. */
-  private stopHeartbeat(): void {
-    this.clearPongDeadline();
-    if (this.pingTimer !== null) {
-      this.clock.clearInterval(this.pingTimer);
-      this.pingTimer = null;
-    }
-    // Remove pong listener from the previous WebSocket to prevent leaks.
-    if (
-      this.pongHandler !== null &&
-      this.pongHandlerWs !== null &&
-      typeof this.pongHandlerWs.removeListener === "function"
-    ) {
-      this.pongHandlerWs.removeListener("pong", this.pongHandler);
-    }
-    this.pongHandler = null;
-    this.pongHandlerWs = null;
-  }
-
-  /** Clear the pong deadline timer only. */
-  private clearPongDeadline(): void {
-    if (this.pongDeadlineTimer !== null) {
-      this.clock.clearTimeout(this.pongDeadlineTimer);
-      this.pongDeadlineTimer = null;
     }
   }
 
@@ -701,9 +602,8 @@ class WspulseClient implements Client {
     // Cancel any pending reconnect backoff delay.
     this.abortController.abort();
 
-    // Stop the drain timer and heartbeat.
+    // Stop the drain timer.
     this.stopDrain();
-    this.stopHeartbeat();
 
     // Discard unsent frames — close() does not drain the send buffer.
     this.sendBuffer.clear();
