@@ -57,7 +57,8 @@ export class FakeClock implements Clock {
 
       this._now = nextDeadline;
 
-      // Collect all timers at this deadline.
+      // Collect all timers due at or before now (<= is defensive; equivalent
+      // to === here because _now is set to the earliest pending deadline).
       const toFire = this._timers.filter((t) => t.deadline <= this._now);
 
       // Remove fired timers.
