@@ -20,7 +20,7 @@ jobs:
           set -euo pipefail
           # Find the first versioned (non-Unreleased) entry in CHANGELOG.md.
           # [Unreleased] is always at the top; the release version is the next ## [ entry.
-          CHANGELOG_VER=$(grep '## \[' CHANGELOG.md | grep -v 'Unreleased' | head -1 | sed 's/## \[\(.*\)\].*/\1/')
+          CHANGELOG_VER=$(grep '## \[' CHANGELOG.md | { grep -v 'Unreleased' || true; } | head -1 | sed 's/## \[\(.*\)\].*/\1/')
           if [ -z "$CHANGELOG_VER" ]; then
             echo "No versioned entry found in CHANGELOG.md — nothing to check"
             exit 0
