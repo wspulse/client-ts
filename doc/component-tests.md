@@ -28,7 +28,7 @@ reliably as part of `make check` (via `npx vitest run`).
 | ----------------------------------------------------- | -------------------------------------------- |
 | `round-trips all Message fields (event, payload)`     | Full Message field fidelity through codec    |
 | `handles dial failure gracefully`                     | Dialer error rejects connect() Promise       |
-| `sends multiple frames and receives them in order`    | Message ordering preservation                |
+| `sends multiple messages and receives them in order`  | Message ordering preservation                |
 | `concurrent sends do not race`                        | 50 senders x 5 messages each (scenario 7)    |
 | `detects server-initiated close`                      | Transport close -> `onDisconnect(Error)`     |
 | `onDisconnect fires exactly once on close`            | User-initiated close -> single callback      |
