@@ -18,25 +18,23 @@ jobs:
       - name: Version consistency check
         run: |
           set -euo pipefail
-          CHANGELOG_TOP=$(grep -m1 '## \[' CHANGELOG.md | sed 's/## \[\(.*\)\].*/\1/')
-          if [ -z "$CHANGELOG_TOP" ]; then
-            echo "Failed to parse top entry from CHANGELOG.md"
-            exit 1
-          fi
-          if [ "$CHANGELOG_TOP" = "Unreleased" ]; then
-            echo "CHANGELOG is [Unreleased] — version check skipped (changelog-gate handles this)"
+          # Find the first versioned (non-Unreleased) entry in CHANGELOG.md.
+          # [Unreleased] is always at the top; the release version is the next ## [ entry.
+          CHANGELOG_VER=$(grep '## \[' CHANGELOG.md | grep -v 'Unreleased' | head -1 | sed 's/## \[\(.*\)\].*/\1/')
+          if [ -z "$CHANGELOG_VER" ]; then
+            echo "No versioned entry found in CHANGELOG.md — nothing to check"
             exit 0
           fi
           PKG_VERSION=$(jq -r '.version' package.json)
           LOCK_VERSION=$(jq -r '.version' package-lock.json)
           FAIL=0
-          if [ "$PKG_VERSION" != "$CHANGELOG_TOP" ]; then
-            echo "Mismatch: package.json=$PKG_VERSION, CHANGELOG=$CHANGELOG_TOP"
+          if [ "$PKG_VERSION" != "$CHANGELOG_VER" ]; then
+            echo "Mismatch: package.json=$PKG_VERSION, CHANGELOG=$CHANGELOG_VER"
             FAIL=1
           fi
-          if [ "$LOCK_VERSION" != "$CHANGELOG_TOP" ]; then
-            echo "Mismatch: package-lock.json=$LOCK_VERSION, CHANGELOG=$CHANGELOG_TOP"
+          if [ "$LOCK_VERSION" != "$CHANGELOG_VER" ]; then
+            echo "Mismatch: package-lock.json=$LOCK_VERSION, CHANGELOG=$CHANGELOG_VER"
             FAIL=1
           fi
           if [ "$FAIL" -eq 1 ]; then exit 1; fi
-          echo "All versions match: $CHANGELOG_TOP"
+          echo "All versions match: $CHANGELOG_VER"
