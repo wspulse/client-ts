@@ -1,5 +1,5 @@
 import type { Clock } from "./clock.js";
-import type { Frame } from "./frame.js";
+import type { Message } from "./message.js";
 import type { Codec } from "./codec.js";
 import type { Transport } from "./transport.js";
 import { defaultClock } from "./clock.js";
@@ -29,10 +29,10 @@ export interface AutoReconnectOptions {
  */
 export interface ClientOptions {
   /**
-   * Called for every inbound frame decoded by the codec.
+   * Called for every inbound message decoded by the codec.
    * Must not fire after `onDisconnect` has been called.
    */
-  onMessage?: (frame: Frame) => void;
+  onMessage?: (msg: Message) => void;
 
   /**
    * Called exactly once when the client reaches CLOSED state.
@@ -60,10 +60,10 @@ export interface ClientOptions {
   onTransportDrop?: (err: Error | null) => void;
 
   /**
-   * Wire-format codec for encoding/decoding {@link Frame}s.
+   * Wire-format codec for encoding/decoding {@link Message}s.
    *
-   * Defaults to {@link JSONCodec} (JSON text frames). Provide a custom
-   * implementation (e.g. Protocol Buffers) to use binary frames.
+   * Defaults to {@link JSONCodec} (JSON text WebSocket frames). Provide a
+   * custom implementation (e.g. Protocol Buffers) to use binary WebSocket frames.
    */
   codec?: Codec;
   /** Enable exponential backoff reconnection. Disabled by default. */
@@ -83,7 +83,7 @@ export interface ClientOptions {
   dialHeaders?: Record<string, string>;
 
   /**
-   * Maximum number of outbound frames that can be buffered before
+   * Maximum number of outbound messages that can be buffered before
    * {@link Client.send} throws {@link SendBufferFullError}.
    *
    * Must be between 1 and 4096 inclusive. Default: 256.
@@ -115,7 +115,7 @@ const DEFAULT_WRITE_WAIT = 10_000;
 /** @internal Default max inbound message: 1 MiB. */
 const DEFAULT_MAX_MESSAGE_SIZE = 1 << 20;
 
-/** @internal Default send buffer capacity: 256 frames. */
+/** @internal Default send buffer capacity: 256 messages. */
 const DEFAULT_SEND_BUFFER_SIZE = 256;
 
 /** @internal Upper bound for send buffer size. */
@@ -135,7 +135,7 @@ const MAX_RETRIES_LIMIT = 32;
  * Callbacks are no-ops when the caller did not provide them.
  */
 export interface ResolvedOptions {
-  onMessage: (frame: Frame) => void;
+  onMessage: (msg: Message) => void;
   onDisconnect: (err: Error | null) => void;
   onTransportRestore: () => void;
   onTransportDrop: (err: Error | null) => void;

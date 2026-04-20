@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: `Frame` interface renamed to `Message`. Aligns with upstream `wspulse/core` rename — "frame" is reserved for the WebSocket protocol layer (RFC 6455); "message" is the correct term for the application-layer type.
+- **BREAKING**: `src/frame.ts` renamed to `src/message.ts`. Import paths updated accordingly.
+- All JSDoc, README, and internal references updated from "frame" to "message" (application layer) while preserving "WebSocket frame" where it refers to the wire protocol.
+
 ## [0.6.0] - 2026-04-16
 
 ### Removed

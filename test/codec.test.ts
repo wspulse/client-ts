@@ -1,48 +1,48 @@
 import { describe, it, expect } from "vitest";
 import { JSONCodec } from "../src/codec.js";
 import type { Codec } from "../src/codec.js";
-import type { Frame } from "../src/frame.js";
+import type { Message } from "../src/message.js";
 
 describe("JSONCodec", () => {
-  it("encodes a frame as JSON string", () => {
-    const frame: Frame = { event: "msg", payload: { text: "hello" } };
-    const encoded = JSONCodec.encode(frame);
+  it("encodes a message as JSON string", () => {
+    const msg: Message = { event: "msg", payload: { text: "hello" } };
+    const encoded = JSONCodec.encode(msg);
     expect(typeof encoded).toBe("string");
-    expect(JSON.parse(encoded as string)).toEqual(frame);
+    expect(JSON.parse(encoded as string)).toEqual(msg);
   });
 
-  it("decodes a JSON string into a frame", () => {
+  it("decodes a JSON string into a message", () => {
     const json = '{"event":"msg","payload":{"text":"hello"}}';
-    const frame = JSONCodec.decode(json);
-    expect(frame.event).toBe("msg");
-    expect(frame.payload).toEqual({ text: "hello" });
+    const msg = JSONCodec.decode(json);
+    expect(msg.event).toBe("msg");
+    expect(msg.payload).toEqual({ text: "hello" });
   });
 
-  it("decodes a Uint8Array (UTF-8) into a frame", () => {
+  it("decodes a Uint8Array (UTF-8) into a message", () => {
     const json = '{"event":"test","payload":"binary"}';
     const bytes = new TextEncoder().encode(json);
-    const frame = JSONCodec.decode(bytes);
-    expect(frame.event).toBe("test");
-    expect(frame.payload).toBe("binary");
+    const msg = JSONCodec.decode(bytes);
+    expect(msg.event).toBe("test");
+    expect(msg.payload).toBe("binary");
   });
 
   it("has binaryType 'text'", () => {
     expect(JSONCodec.binaryType).toBe("text");
   });
 
-  it("round-trips a frame", () => {
-    const frame: Frame = { event: "sys", payload: [1, 2, 3] };
-    const decoded = JSONCodec.decode(JSONCodec.encode(frame));
-    expect(decoded).toEqual(frame);
+  it("round-trips a message", () => {
+    const msg: Message = { event: "sys", payload: [1, 2, 3] };
+    const decoded = JSONCodec.decode(JSONCodec.encode(msg));
+    expect(decoded).toEqual(msg);
   });
 
   it("throws on invalid JSON string", () => {
     expect(() => JSONCodec.decode("not json")).toThrow();
   });
 
-  it("encodes a minimal frame (no fields)", () => {
-    const frame: Frame = {};
-    const encoded = JSONCodec.encode(frame);
+  it("encodes a minimal message (no fields)", () => {
+    const msg: Message = {};
+    const encoded = JSONCodec.encode(msg);
     expect(JSON.parse(encoded as string)).toEqual({});
   });
 });
@@ -51,21 +51,21 @@ describe("Codec interface", () => {
   it("accepts a custom binary codec", () => {
     const binaryCodec: Codec = {
       binaryType: "binary",
-      encode(frame: Frame): Uint8Array {
-        return new TextEncoder().encode(JSON.stringify(frame));
+      encode(msg: Message): Uint8Array {
+        return new TextEncoder().encode(JSON.stringify(msg));
       },
-      decode(data: string | Uint8Array): Frame {
+      decode(data: string | Uint8Array): Message {
         const str =
           typeof data === "string" ? data : new TextDecoder().decode(data);
-        return JSON.parse(str) as Frame;
+        return JSON.parse(str) as Message;
       },
     };
 
-    const frame: Frame = { event: "bin", payload: { x: 1 } };
-    const encoded = binaryCodec.encode(frame);
+    const msg: Message = { event: "bin", payload: { x: 1 } };
+    const encoded = binaryCodec.encode(msg);
     expect(encoded).toBeInstanceOf(Uint8Array);
     const decoded = binaryCodec.decode(encoded);
-    expect(decoded).toEqual(frame);
+    expect(decoded).toEqual(msg);
     expect(binaryCodec.binaryType).toBe("binary");
   });
 });
