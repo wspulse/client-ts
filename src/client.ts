@@ -1,5 +1,5 @@
 import type { Clock } from "./clock.js";
-import type { Frame } from "./frame.js";
+import type { Message } from "./message.js";
 import type { Transport } from "./transport.js";
 import type { ClientOptions, ResolvedOptions } from "./options.js";
 import { resolveOptions } from "./options.js";
@@ -20,14 +20,14 @@ import { backoff } from "./backoff.js";
  */
 export interface Client {
   /**
-   * Enqueue a Frame for delivery.
+   * Enqueue a Message for delivery.
    *
    * Non-blocking.
    *
    * @throws {@link ConnectionClosedError} if the client is in CLOSED state.
    * @throws {@link SendBufferFullError} if the internal send buffer is full.
    */
-  send(frame: Frame): void;
+  send(msg: Message): void;
 
   /**
    * Permanently terminate the connection and stop any reconnect loop.
@@ -240,16 +240,16 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Enqueue a Frame for delivery.
+   * Enqueue a Message for delivery.
    *
    * @throws {@link ConnectionClosedError} if the client is in CLOSED state.
    * @throws {@link SendBufferFullError} if the internal send buffer is full.
    */
-  send(frame: Frame): void {
+  send(msg: Message): void {
     if (this.closed) {
       throw new ConnectionClosedError();
     }
-    const data = this.opts.codec.encode(frame);
+    const data = this.opts.codec.encode(msg);
     if (!this.sendBuffer.push(data)) {
       throw new SendBufferFullError();
     }
@@ -323,10 +323,10 @@ class WspulseClient implements Client {
       }
 
       try {
-        const frame = this.opts.codec.decode(normalized);
-        this.opts.onMessage(frame);
+        const msg = this.opts.codec.decode(normalized);
+        this.opts.onMessage(msg);
       } catch (err) {
-        console.warn("wspulse/client: decode failed, frame dropped", err);
+        console.warn("wspulse/client: decode failed, message dropped", err);
       }
     };
 
@@ -483,8 +483,8 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Flush all buffered frames to the WebSocket serially with per-write
-   * timeout. On Node.js each frame is sent via `sendOneFrame` so a
+   * Flush all buffered messages to the WebSocket serially with per-write
+   * timeout. On Node.js each message is sent via `sendOneMessage` so a
    * stalled socket is detected within `writeWait`. In browsers `send()`
    * is fire-and-forget (no completion callback) so no deadline applies.
    *
@@ -504,13 +504,13 @@ class WspulseClient implements Client {
           this.sendBuffer.shift();
           continue;
         }
-        const ok = await this.sendOneFrame(encoded);
+        const ok = await this.sendOneMessage(encoded);
         if (!ok) return; // timeout or error — socket is closing
         this.sendBuffer.shift();
       }
     } finally {
       this.draining = false;
-      // If new frames arrived during the flush, schedule another drain.
+      // If new messages arrived during the flush, schedule another drain.
       if (this.sendBuffer.length > 0 && !this.closed) {
         this.startDrain();
       }
@@ -518,7 +518,7 @@ class WspulseClient implements Client {
   }
 
   /**
-   * Send a single frame with write-deadline enforcement.
+   * Send a single message with write-deadline enforcement.
    *
    * On Node.js (`ws` library): uses the callback form of `send()` and
    * races it against a `writeWait` timeout. On timeout the socket is
@@ -528,7 +528,7 @@ class WspulseClient implements Client {
    *
    * @returns `true` if the write completed, `false` if it timed out or errored.
    */
-  private sendOneFrame(data: string | Uint8Array): Promise<boolean> {
+  private sendOneMessage(data: string | Uint8Array): Promise<boolean> {
     if (this.ws.readyState !== WS_OPEN) return Promise.resolve(false);
     const ws = this.ws;
 
@@ -605,7 +605,7 @@ class WspulseClient implements Client {
     // Stop the drain timer.
     this.stopDrain();
 
-    // Discard unsent frames — close() does not drain the send buffer.
+    // Discard unsent messages — close() does not drain the send buffer.
     this.sendBuffer.clear();
 
     // Close the WebSocket. Suppress errors (may already be closed).

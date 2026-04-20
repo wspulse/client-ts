@@ -10,7 +10,7 @@ wspulse/client-ts is a **WebSocket client library for TypeScript/JavaScript** wi
 - **`src/transport.ts`** — `Transport` interface (minimal WebSocket shape). Extracted so tests can provide mock implementations via `_dialer`.
 - **`src/options.ts`** — `ClientOptions` interface and `resolveOptions()` to merge with defaults.
 - **`src/codec.ts`** — `Codec` interface and `JSONCodec` default implementation. Mirrors Go `core` module's `Codec`.
-- **`src/frame.ts`** — `Frame` interface (event, payload — all optional).
+- **`src/message.ts`** — `Message` interface (event, payload — all optional).
 - **`src/errors.ts`** — Error classes: `ConnectionClosedError`, `RetriesExhaustedError`, `ConnectionLostError`.
 - **`src/backoff.ts`** — `backoff()` function for exponential delay with equal jitter (matches Go implementation).
 - **`src/index.ts`** — Public re-exports.

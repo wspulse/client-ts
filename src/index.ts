@@ -1,4 +1,4 @@
-export type { Frame } from "./frame.js";
+export type { Message } from "./message.js";
 export type { Client } from "./client.js";
 export type { Transport } from "./transport.js";
 export type { Codec } from "./codec.js";

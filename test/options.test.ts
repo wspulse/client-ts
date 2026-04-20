@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { resolveOptions } from "../src/options.js";
 import { JSONCodec } from "../src/codec.js";
-import type { Frame } from "../src/frame.js";
+import type { Message } from "../src/message.js";
 
 describe("resolveOptions", () => {
   it("returns defaults when no options provided", () => {
@@ -29,10 +29,10 @@ describe("resolveOptions", () => {
 
   it("default callbacks are callable no-ops", () => {
     const opts = resolveOptions();
-    const frame: Frame = { event: "test" };
+    const msg: Message = { event: "test" };
 
     // These should not throw
-    expect(() => opts.onMessage(frame)).not.toThrow();
+    expect(() => opts.onMessage(msg)).not.toThrow();
     expect(() => opts.onDisconnect(null)).not.toThrow();
     expect(() => opts.onDisconnect(new Error("err"))).not.toThrow();
     expect(() => opts.onTransportRestore()).not.toThrow();
@@ -53,9 +53,9 @@ describe("resolveOptions", () => {
       onTransportDrop,
     });
 
-    const frame: Frame = { event: "msg", payload: "hello" };
-    opts.onMessage(frame);
-    expect(onMessage).toHaveBeenCalledWith(frame);
+    const msg: Message = { event: "msg", payload: "hello" };
+    opts.onMessage(msg);
+    expect(onMessage).toHaveBeenCalledWith(msg);
 
     opts.onDisconnect(null);
     expect(onDisconnect).toHaveBeenCalledWith(null);

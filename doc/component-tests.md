@@ -13,7 +13,7 @@ reliably as part of `make check` (via `npx vitest run`).
 
 | #   | Scenario                                                           | Test Name                                                              |
 | --- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| 1   | Connect -> send -> echo -> close clean                             | `connects, sends a frame, receives echo, and closes cleanly`           |
+| 1   | Connect -> send -> echo -> close clean                             | `connects, sends a message, receives echo, and closes cleanly`         |
 | 2   | Server drops -> onTransportDrop + onDisconnect (no reconnect)      | `server drop fires onTransportDrop and onDisconnect without reconnect` |
 | 3   | Auto-reconnect: server drops -> reconnects within maxRetries       | `reconnects after transport drop and resumes sending`                  |
 | 4   | Max retries exhausted -> `onDisconnect(RetriesExhaustedError)`     | `fires RetriesExhaustedError after max retries exhausted`              |
@@ -26,7 +26,7 @@ reliably as part of `make check` (via `npx vitest run`).
 
 | Test Name                                             | What It Covers                               |
 | ----------------------------------------------------- | -------------------------------------------- |
-| `round-trips all Frame fields (event, payload)`       | Full Frame field fidelity through codec      |
+| `round-trips all Message fields (event, payload)`     | Full Message field fidelity through codec    |
 | `handles dial failure gracefully`                     | Dialer error rejects connect() Promise       |
 | `sends multiple frames and receives them in order`    | Message ordering preservation                |
 | `concurrent sends do not race`                        | 50 senders x 5 messages each (scenario 7)    |
