@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
-import type { Frame } from "../../src/frame.js";
+import type { Message } from "../../src/message.js";
 import { RetriesExhaustedError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
 import { FakeClock } from "./fake-clock.js";
@@ -26,7 +26,7 @@ afterEach(async () => {
 describe("component: reconnect", () => {
   // Scenario 3: Auto-reconnect after transport drop
   it("reconnects after transport drop and resumes sending", async () => {
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let transportRestoreCount = 0;
     let restoredResolve: () => void = () => {};
     const restored = new Promise<void>((r) => {
@@ -39,8 +39,8 @@ describe("component: reconnect", () => {
     const dialer = new MockDialer([t1, t2]);
 
     testClient = await connect("ws://mock/ws", {
-      onMessage(frame) {
-        received.push(frame);
+      onMessage(msg) {
+        received.push(msg);
       },
       onTransportRestore() {
         transportRestoreCount++;

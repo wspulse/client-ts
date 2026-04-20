@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
-import type { Frame } from "../../src/frame.js";
+import type { Message } from "../../src/message.js";
 import { SendBufferFullError } from "../../src/errors.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
 import { FakeClock } from "./fake-clock.js";
@@ -66,18 +66,18 @@ describe("component: misc", () => {
       ),
     );
 
-    // Advance past the drain timer (5 ms). The async flush sends frames
-    // serially; each frame needs one microtask tick for the await. FakeClock
+    // Advance past the drain timer (5 ms). The async flush sends messages
+    // serially; each message needs one microtask tick for the await. FakeClock
     // flushes 10 microtasks after the timer fires; yield the remaining ticks
-    // so all 250 frames complete.
+    // so all 250 messages complete.
     await clock.advance(10);
     for (let i = 0; i < total; i++) await Promise.resolve();
 
     expect(transport.sent.length).toBe(total);
 
-    // Verify all frames have the expected event.
+    // Verify all messages have the expected event.
     for (const raw of transport.sent) {
-      const f = JSON.parse(raw as string) as Frame;
+      const f = JSON.parse(raw as string) as Message;
       expect(f.event).toBe("concurrent");
     }
   });
@@ -123,7 +123,7 @@ describe("component: misc", () => {
       t,
     );
 
-    // Send a frame — it goes into the buffer.
+    // Send a message — it goes into the buffer.
     client.send({ event: "ping" });
 
     // Advance past the drain timer (5 ms) so flushSendBuffer fires.
@@ -144,10 +144,10 @@ describe("component: misc", () => {
     void client;
   });
 
-  // Write timeout: unsent frames preserved and re-drained after reconnect
+  // Write timeout: unsent messages preserved and re-drained after reconnect
   it("stalled write preserves buffer across reconnect", async () => {
     const clock = new FakeClock();
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let restoreResolve: () => void = () => {};
     const restored = new Promise<void>((r) => {
       restoreResolve = r;
@@ -162,8 +162,8 @@ describe("component: misc", () => {
     const client = await connect("ws://mock/ws", {
       writeWait: 100,
       autoReconnect: { maxRetries: 3, baseDelay: 10, maxDelay: 50 },
-      onMessage(frame) {
-        received.push(frame);
+      onMessage(msg) {
+        received.push(msg);
       },
       onTransportRestore() {
         restoreResolve();
@@ -173,7 +173,7 @@ describe("component: misc", () => {
     });
     testClient = client;
 
-    // Send two frames — they go into the buffer.
+    // Send two messages — they go into the buffer.
     client.send({ event: "a" });
     client.send({ event: "b" });
 
@@ -185,25 +185,25 @@ describe("component: misc", () => {
     await clock.advance(200);
     await restored;
 
-    // Give the async flush enough microtask ticks to drain the 2 frames
+    // Give the async flush enough microtask ticks to drain the 2 messages
     // on the new transport.
     for (let i = 0; i < 10; i++) await Promise.resolve();
 
-    // Both frames should have been sent on the new transport.
+    // Both messages should have been sent on the new transport.
     expect(t2.sent.length).toBe(2);
-    const f0 = JSON.parse(t2.sent[0] as string) as Frame;
-    const f1 = JSON.parse(t2.sent[1] as string) as Frame;
+    const f0 = JSON.parse(t2.sent[0] as string) as Message;
+    const f1 = JSON.parse(t2.sent[1] as string) as Message;
     expect(f0.event).toBe("a");
     expect(f1.event).toBe("b");
   });
 
-  // close() discards unsent buffered frames (contract: close() does not drain)
-  it("close discards unsent buffered frames", async () => {
+  // close() discards unsent buffered messages (contract: close() does not drain)
+  it("close discards unsent buffered messages", async () => {
     const clock = new FakeClock();
     const t = new MockTransport();
     const { client } = await connectMock(clock, {}, t);
 
-    // Buffer three frames — drain timer (5 ms) has not fired yet.
+    // Buffer three messages — drain timer (5 ms) has not fired yet.
     client.send({ event: "a" });
     client.send({ event: "b" });
     client.send({ event: "c" });
@@ -212,7 +212,7 @@ describe("component: misc", () => {
     client.close();
     await client.done;
 
-    // No frames should have been sent to the transport.
+    // No messages should have been sent to the transport.
     expect(t.sent.length).toBe(0);
   });
 
@@ -239,9 +239,9 @@ describe("component: misc", () => {
     // Advance past drain timer.
     await clock.advance(10);
 
-    // Frame should be sent synchronously (browser path).
+    // Message should be sent synchronously (browser path).
     expect(t.sent.length).toBe(1);
-    const f = JSON.parse(t.sent[0] as string) as Frame;
+    const f = JSON.parse(t.sent[0] as string) as Message;
     expect(f.event).toBe("browser-msg");
   });
 });

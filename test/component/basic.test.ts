@@ -1,10 +1,10 @@
 /**
- * Component tests — basic connectivity and frame handling.
+ * Component tests — basic connectivity and message handling.
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
-import type { Frame } from "../../src/frame.js";
+import type { Message } from "../../src/message.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
 import { FakeClock } from "./fake-clock.js";
 
@@ -46,15 +46,15 @@ async function connectMock(
 
 describe("component: basic", () => {
   // Scenario 1: Connect -> send -> receive echo -> close clean
-  it("connects, sends a frame, receives echo, and closes cleanly", async () => {
-    const received: Frame[] = [];
+  it("connects, sends a message, receives echo, and closes cleanly", async () => {
+    const received: Message[] = [];
     let disconnectErr: Error | null | undefined;
     let transportDropErr: Error | null | undefined;
     const clock = new FakeClock();
 
     const { client, transport } = await connectMock(clock, {
-      onMessage(frame) {
-        received.push(frame);
+      onMessage(msg) {
+        received.push(msg);
       },
       onDisconnect(err) {
         disconnectErr = err;
@@ -71,9 +71,9 @@ describe("component: basic", () => {
 
     // Verify sent data.
     expect(transport.sent.length).toBe(1);
-    const sentFrame = JSON.parse(transport.sent[0] as string) as Frame;
-    expect(sentFrame.event).toBe("msg");
-    expect(sentFrame.payload).toEqual({ text: "hello" });
+    const sentMessage = JSON.parse(transport.sent[0] as string) as Message;
+    expect(sentMessage.event).toBe("msg");
+    expect(sentMessage.payload).toEqual({ text: "hello" });
 
     // Simulate echo from server.
     transport.injectMessage(transport.sent[0] as string);
@@ -89,18 +89,18 @@ describe("component: basic", () => {
     expect(disconnectErr).toBeNull();
   });
 
-  // Frame field round-trip
-  it("round-trips all Frame fields (event, payload)", async () => {
-    const received: Frame[] = [];
+  // Message field round-trip
+  it("round-trips all Message fields (event, payload)", async () => {
+    const received: Message[] = [];
     const clock = new FakeClock();
 
     const { client, transport } = await connectMock(clock, {
-      onMessage(frame) {
-        received.push(frame);
+      onMessage(msg) {
+        received.push(msg);
       },
     });
 
-    const outbound: Frame = {
+    const outbound: Message = {
       event: "chat.message",
       payload: { user: "alice", text: "hi", n: 42, nested: { ok: true } },
     };
@@ -128,13 +128,13 @@ describe("component: basic", () => {
   });
 
   // Message ordering
-  it("sends multiple frames and receives them in order", async () => {
-    const received: Frame[] = [];
+  it("sends multiple messages and receives them in order", async () => {
+    const received: Message[] = [];
     const clock = new FakeClock();
 
     const { client, transport } = await connectMock(clock, {
-      onMessage(frame) {
-        received.push(frame);
+      onMessage(msg) {
+        received.push(msg);
       },
     });
 
