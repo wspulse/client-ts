@@ -194,11 +194,11 @@ class WspulseClient implements Client {
   private closed = false;
 
   /**
-   * Set by the client immediately before any internal `ws.close(code, reason)`
-   * call that is NOT a server close (e.g. write timeout, write error). The
-   * subsequent `ws.onclose` reads this flag to decide whether to surface a
-   * {@link ServerClosedError} — a self-initiated close must not be reported
-   * as if the server sent the close frame.
+   * Set by the client immediately before internal `ws.close(code, reason)`
+   * calls that still flow through the shared `ws.onclose` handler (currently
+   * the write timeout/write error paths). That handler reads this flag to
+   * decide whether to surface a {@link ServerClosedError} — a self-initiated
+   * close must not be reported as if the server sent the close frame.
    */
   private selfClosing = false;
 
