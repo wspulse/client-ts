@@ -584,11 +584,17 @@ class WspulseClient implements Client {
       const timer = this.clock.setTimeout(() => {
         if (settled) return;
         settled = true;
-        try {
-          this.selfClosing = true;
-          ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
-        } catch {
-          // Already closed.
+        // Guard against stale transport: if a server close + reconnect landed
+        // while this send was in flight, `ws` is no longer the active socket.
+        // Skipping selfClosing mutation avoids suppressing a subsequent
+        // legitimate ServerClosedError on the new transport.
+        if (this.ws === ws) {
+          try {
+            this.selfClosing = true;
+            ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
+          } catch {
+            // Already closed.
+          }
         }
         resolve(false);
       }, this.opts.writeWait);
@@ -600,11 +606,13 @@ class WspulseClient implements Client {
           settled = true;
           this.clock.clearTimeout(timer);
           if (err) {
-            try {
-              this.selfClosing = true;
-              ws.close(WS_CLOSE_GOING_AWAY, "write error");
-            } catch {
-              // Already closed.
+            if (this.ws === ws) {
+              try {
+                this.selfClosing = true;
+                ws.close(WS_CLOSE_GOING_AWAY, "write error");
+              } catch {
+                // Already closed.
+              }
             }
             resolve(false);
           } else {
@@ -618,11 +626,13 @@ class WspulseClient implements Client {
         if (settled) return;
         settled = true;
         this.clock.clearTimeout(timer);
-        try {
-          this.selfClosing = true;
-          ws.close(WS_CLOSE_GOING_AWAY, "write error");
-        } catch {
-          // Already closed.
+        if (this.ws === ws) {
+          try {
+            this.selfClosing = true;
+            ws.close(WS_CLOSE_GOING_AWAY, "write error");
+          } catch {
+            // Already closed.
+          }
         }
         resolve(false);
       }
