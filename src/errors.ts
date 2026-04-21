@@ -39,7 +39,7 @@ export class ConnectionLostError extends Error {
  * Thrown by {@link Client.send} when the internal send buffer is full.
  *
  * The caller should handle this error explicitly — for example by retrying,
- * discarding the frame, or closing the connection.
+ * discarding the message, or closing the connection.
  */
 export class SendBufferFullError extends Error {
   constructor() {

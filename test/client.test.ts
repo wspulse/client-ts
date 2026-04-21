@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { connect } from "../src/client.js";
 import { ConnectionClosedError, SendBufferFullError } from "../src/errors.js";
-import type { Frame } from "../src/frame.js";
+import type { Message } from "../src/message.js";
 import type { Client } from "../src/client.js";
 
 // ── test helpers ────────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@ function createEchoServer(): { server: WebSocketServer; url: string } {
   const server = new WebSocketServer({ port: 0 });
   server.on("connection", (ws) => {
     ws.on("message", (data, isBinary) => {
-      // Echo back as text frame to match the original JSON string.
+      // Echo back as text WebSocket frame to match the original JSON string.
       ws.send(isBinary ? data : data.toString(), { binary: false });
     });
   });
@@ -52,11 +52,11 @@ describe("client lifecycle", () => {
     const { server, url } = createEchoServer();
     testServer = server;
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let disconnectErr: Error | null | undefined;
 
     testClient = await connect(url, {
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
       onDisconnect: (err) => {
         disconnectErr = err;
       },
@@ -159,12 +159,12 @@ describe("auto-reconnect", () => {
     testServer = server;
     const port = new URL(url).port;
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let transportDropCount = 0;
     let transportRestoreCount = 0;
 
     testClient = await connect(url, {
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
       onTransportRestore: () => {
         transportRestoreCount++;
       },
@@ -285,7 +285,7 @@ describe("send buffer overflow", () => {
 
     testClient = await connect(silentUrl);
 
-    // Fill up the 256-frame buffer — should not throw.
+    // Fill up the 256-message buffer — should not throw.
     for (let i = 0; i < 256; i++) {
       testClient.send({ event: "msg", payload: i });
     }
@@ -338,13 +338,13 @@ describe("connect failure with autoReconnect", () => {
 });
 
 describe("multiple messages", () => {
-  it("delivers frames in enqueue order", async () => {
+  it("delivers messages in enqueue order", async () => {
     const { server, url } = createEchoServer();
     testServer = server;
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     testClient = await connect(url, {
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
     });
 
     for (let i = 0; i < 10; i++) {
@@ -381,12 +381,12 @@ describe("maxMessageSize", () => {
     if (typeof addr === "string" || addr === null) throw new Error("bad addr");
     testServer = bigServer;
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let disconnectErr: Error | null | undefined;
 
     testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
       maxMessageSize: 100,
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
       onDisconnect: (err) => {
         disconnectErr = err;
       },
@@ -402,8 +402,8 @@ describe("maxMessageSize", () => {
 });
 
 describe("decode failure", () => {
-  it("logs warning and continues processing valid frames", async () => {
-    // Server that sends an invalid frame followed by a valid one.
+  it("logs warning and continues processing valid messages", async () => {
+    // Server that sends an invalid message followed by a valid one.
     const server = new WebSocketServer({ port: 0 });
     server.on("connection", (ws) => {
       setTimeout(() => {
@@ -414,15 +414,15 @@ describe("decode failure", () => {
     const addr = server.address();
     if (typeof addr === "string" || addr === null) throw new Error("bad addr");
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     testClient = await connect(`ws://127.0.0.1:${addr.port}`, {
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
     });
     testServer = server;
 
-    // Wait for the valid frame to arrive.
+    // Wait for the valid message to arrive.
     await vi.waitFor(() => expect(received.length).toBe(1), { timeout: 2000 });
 
     expect(received[0].event).toBe("valid");
@@ -573,7 +573,7 @@ describe("onTransportRestore", () => {
     testServer = server;
     const port = new URL(url).port;
 
-    const received: Frame[] = [];
+    const received: Message[] = [];
     let transportDropCount = 0;
     let transportRestoreCount = 0;
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -584,7 +584,7 @@ describe("onTransportRestore", () => {
     });
 
     testClient = await connect(url, {
-      onMessage: (frame) => received.push(frame),
+      onMessage: (msg) => received.push(msg),
       onTransportDrop: () => {
         transportDropCount++;
       },

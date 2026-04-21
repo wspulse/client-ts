@@ -18,7 +18,7 @@ Works in **Node.js 20+** (via [`ws`](https://github.com/websockets/ws)) and **br
 ## Design Goals
 
 - Thin client: connect, send, receive, auto-reconnect
-- Matches server-side `Frame` wire format via JSON text frames
+- Matches server-side `Message` wire format via JSON text WebSocket frames
 - Exponential backoff with configurable retries (equal jitter)
 - Transport drop vs. permanent disconnect callbacks
 - Node.js and browser support from a single package
@@ -49,8 +49,8 @@ npm install ws
 import { connect } from "@wspulse/client-ts";
 
 const client = await connect("ws://localhost:8080/ws?room=r1&token=xyz", {
-  onMessage(frame) {
-    console.log(`[${frame.event}]`, frame.payload);
+  onMessage(msg) {
+    console.log(`[${msg.event}]`, msg.payload);
   },
   autoReconnect: {
     maxRetries: 5,
@@ -72,8 +72,8 @@ await client.done;
   import { connect } from "@wspulse/client-ts";
 
   const client = await connect("wss://api.example.com/ws?room=lobby", {
-    onMessage(frame) {
-      console.log(frame.event, frame.payload);
+    onMessage(msg) {
+      console.log(msg.event, msg.payload);
     },
   });
 
@@ -85,9 +85,9 @@ await client.done;
 
 ---
 
-## Frame Format
+## Message Format
 
-The default `JSONCodec` encodes frames as JSON text frames:
+The default `JSONCodec` encodes messages as JSON text WebSocket frames:
 
 ```json
 {
@@ -99,14 +99,14 @@ The default `JSONCodec` encodes frames as JSON text frames:
 To use a custom wire format (e.g. Protocol Buffers), implement the `Codec` interface:
 
 ```ts
-import type { Codec, Frame } from "@wspulse/client-ts";
+import type { Codec, Message } from "@wspulse/client-ts";
 
 const myCodec: Codec = {
   binaryType: "binary",
-  encode(frame: Frame): Uint8Array {
+  encode(msg: Message): Uint8Array {
     // serialize to binary
   },
-  decode(data: string | Uint8Array): Frame {
+  decode(data: string | Uint8Array): Message {
     // deserialize from binary
   },
 };
@@ -114,19 +114,19 @@ const myCodec: Codec = {
 const client = await connect(url, { codec: myCodec });
 ```
 
-The `event` field is the routing key on the server side. Set `frame.event` to match the handler registered with `r.On("chat.message", ...)` on the server. The `payload` field carries arbitrary data — the codec determines how it is serialized.
+The `event` field is the routing key on the server side. Set `msg.event` to match the handler registered with `r.On("chat.message", ...)` on the server. The `payload` field carries arbitrary data — the codec determines how it is serialized.
 
 ```ts
-// Send a typed frame — server routes by "event"
+// Send a typed message — server routes by "event"
 client.send({
   event: "chat.message",
   payload: { text: "hello world" },
 });
 
-// Receive typed frames
+// Receive typed messages
 const client = await connect(url, {
-  onMessage(frame) {
-    switch (frame.event) {
+  onMessage(msg) {
+    switch (msg.event) {
       case "chat.message":
         // handle message
         break;
@@ -146,7 +146,7 @@ const client = await connect(url, {
 | ----------------------- | ----------------------------------------------- |
 | `Client`                | Interface: `send()`, `close()`, `done`          |
 | `connect(url, opts?)`   | Connect and return a `Client`                   |
-| `Frame`                 | Interface: `{ event?, payload? }`               |
+| `Message`               | Interface: `{ event?, payload? }`               |
 | `Codec`                 | Interface: `encode()`, `decode()`, `binaryType` |
 | `JSONCodec`             | Default codec — JSON text frames                |
 | `ClientOptions`         | Options object type                             |
@@ -159,7 +159,7 @@ const client = await connect(url, {
 
 | Option               | Type                                  | Default           |
 | -------------------- | ------------------------------------- | ----------------- |
-| `onMessage`          | `(frame: Frame) => void`              | no-op             |
+| `onMessage`          | `(msg: Message) => void`              | no-op             |
 | `onDisconnect`       | `(err: Error \| null) => void`        | no-op             |
 | `onTransportRestore` | `() => void`                          | no-op             |
 | `onTransportDrop`    | `(err: Error \| null) => void`        | no-op             |
@@ -173,7 +173,7 @@ const client = await connect(url, {
 
 ## Logging
 
-The client logs warnings via `console.warn` when an inbound frame cannot be decoded by the configured codec. This is always enabled.
+The client logs warnings via `console.warn` when an inbound message cannot be decoded by the configured codec. This is always enabled.
 
 **Disable logging** by temporarily overriding `console.warn`:
 
@@ -196,7 +196,7 @@ try {
 - **Transport restore callback** — `onTransportRestore` fires after a successful reconnect (not on the initial connect). Useful for re-subscribing or refreshing state.
 - **Permanent disconnect callback** — `onDisconnect` fires exactly once when the client is truly done (`close()` called, retries exhausted, or connection lost without auto-reconnect).
 - **Max message size** — Inbound messages exceeding `maxMessageSize` are rejected with close code 1009.
-- **Backpressure** — bounded 256-frame send buffer; throws `SendBufferFullError` when full.
+- **Backpressure** — bounded 256-message send buffer; throws `SendBufferFullError` when full.
 - **`done` Promise** — resolves when the client reaches CLOSED state. Await it to block until permanently disconnected.
 
 ---

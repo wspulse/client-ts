@@ -7,6 +7,14 @@
 - `ServerClosedError` — passed to `onTransportDrop` when the server sends a WebSocket close frame. Exposes `code: number` and `reason: string` read directly from the close frame.
 - `StatusCode` — RFC 6455 §7.4 close status code constants (`NormalClosure`, `GoingAway`, etc.). Exported as a plain number object; custom codes in the `4000`–`4999` private-use range are valid. See [wspulse/.github#37](https://github.com/wspulse/.github/issues/37).
 
+## [0.7.0] - 2026-04-20
+
+### Changed
+
+- **BREAKING**: `Frame` interface renamed to `Message`. Aligns with upstream `wspulse/core` rename — "frame" is reserved for the WebSocket protocol layer (RFC 6455); "message" is the correct term for the application-layer type.
+- **BREAKING**: `src/frame.ts` renamed to `src/message.ts`. Import paths updated accordingly.
+- All JSDoc, README, and internal references updated from "frame" to "message" (application layer) while preserving "WebSocket frame" where it refers to the wire protocol.
+
 ## [0.6.0] - 2026-04-16
 
 ### Removed
@@ -140,7 +148,8 @@
 - CI workflow: lint → type-check → test on Node 20 and 22 (3-job matrix)
 - README with quick-start, API reference, and platform notes
 
-[Unreleased]: https://github.com/wspulse/client-ts/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/wspulse/client-ts/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/wspulse/client-ts/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/wspulse/client-ts/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/wspulse/client-ts/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wspulse/client-ts/compare/v0.5.0...v0.5.1

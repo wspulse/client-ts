@@ -15,7 +15,7 @@ making any changes.
 
 - `src/client.ts` — `connect()` entry point, `WspulseClient` implementation
 - `src/options.ts` — `ClientOptions` interface, `resolveOptions()` defaults
-- `src/frame.ts` — `Frame` interface
+- `src/message.ts` — `Message` interface
 - `src/errors.ts` — `ConnectionClosedError`, `RetriesExhaustedError`, `ConnectionLostError`
 - `src/backoff.ts` — `backoff()` exponential delay function
 - `src/index.ts` — public re-exports
