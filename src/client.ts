@@ -9,6 +9,7 @@ import {
   RetriesExhaustedError,
   ConnectionLostError,
   SendBufferFullError,
+  ServerClosedError,
 } from "./errors.js";
 import { backoff } from "./backoff.js";
 
@@ -192,6 +193,15 @@ class WspulseClient implements Client {
   /** Whether the client is permanently closed. */
   private closed = false;
 
+  /**
+   * Set by the client immediately before any internal `ws.close(code, reason)`
+   * call that is NOT a server close (e.g. write timeout, write error). The
+   * subsequent `ws.onclose` reads this flag to decide whether to surface a
+   * {@link ServerClosedError} — a self-initiated close must not be reported
+   * as if the server sent the close frame.
+   */
+  private selfClosing = false;
+
   /** Fires exactly once when the client reaches CLOSED state. */
   private readonly doneResolve: () => void;
 
@@ -330,8 +340,28 @@ class WspulseClient implements Client {
       }
     };
 
-    ws.onclose = () => {
-      this.handleTransportDrop();
+    ws.onclose = (ev) => {
+      // Preserve the close frame code and reason so callers can distinguish
+      // server-initiated closes from abrupt network drops.
+      //
+      // Code 1006 ("abnormal closure") is synthesised by the WebSocket spec
+      // when no close frame was received — treat as an abrupt drop.
+      //
+      // When the client self-closed for an internal error (write timeout,
+      // write error), the browser also fires onclose with that same code
+      // and reason. selfClosing distinguishes these from real server-
+      // initiated closes.
+      let dropErr: Error | undefined;
+      if (this.selfClosing) {
+        // Reset immediately — reconnect will create a fresh socket.
+        this.selfClosing = false;
+        dropErr = undefined;
+      } else if (ev.code === 1006) {
+        dropErr = undefined;
+      } else {
+        dropErr = new ServerClosedError(ev.code, ev.reason);
+      }
+      this.handleTransportDrop(dropErr);
     };
 
     ws.onerror = () => {
@@ -345,12 +375,18 @@ class WspulseClient implements Client {
    *
    * If auto-reconnect is enabled, starts the reconnect loop.
    * Otherwise, transitions to CLOSED immediately.
+   *
+   * @param cause  If the drop was triggered by a server close frame, pass
+   *               the {@link ServerClosedError} so onTransportDrop sees
+   *               the code and reason. Leave undefined for abrupt drops
+   *               (default: a generic "transport closed unexpectedly" error).
    */
-  private handleTransportDrop(): void {
+  private handleTransportDrop(cause?: Error): void {
     if (this.closed) return;
 
     this.stopDrain();
-    const dropErr = new Error("wspulse: transport closed unexpectedly");
+    const dropErr =
+      cause ?? new Error("wspulse: transport closed unexpectedly");
     // Set reconnecting before firing the callback so that a synchronous
     // close() call inside onTransportDrop sees the correct state regardless
     // of whether auto-reconnect is enabled.
@@ -549,6 +585,7 @@ class WspulseClient implements Client {
         if (settled) return;
         settled = true;
         try {
+          this.selfClosing = true;
           ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
         } catch {
           // Already closed.
@@ -564,6 +601,7 @@ class WspulseClient implements Client {
           this.clock.clearTimeout(timer);
           if (err) {
             try {
+              this.selfClosing = true;
               ws.close(WS_CLOSE_GOING_AWAY, "write error");
             } catch {
               // Already closed.
@@ -581,6 +619,7 @@ class WspulseClient implements Client {
         settled = true;
         this.clock.clearTimeout(timer);
         try {
+          this.selfClosing = true;
           ws.close(WS_CLOSE_GOING_AWAY, "write error");
         } catch {
           // Already closed.
