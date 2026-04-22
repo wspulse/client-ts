@@ -593,7 +593,7 @@ class WspulseClient implements Client {
             this.selfClosing = true;
             ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
           } catch {
-            // Already closed.
+            this.selfClosing = false; // close threw — flag must not persist to next transport.
           }
         }
         resolve(false);
@@ -611,7 +611,7 @@ class WspulseClient implements Client {
                 this.selfClosing = true;
                 ws.close(WS_CLOSE_GOING_AWAY, "write error");
               } catch {
-                // Already closed.
+                this.selfClosing = false; // close threw — flag must not persist to next transport.
               }
             }
             resolve(false);
@@ -631,7 +631,7 @@ class WspulseClient implements Client {
             this.selfClosing = true;
             ws.close(WS_CLOSE_GOING_AWAY, "write error");
           } catch {
-            // Already closed.
+            this.selfClosing = false; // close threw — flag must not persist to next transport.
           }
         }
         resolve(false);

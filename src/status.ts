@@ -1,5 +1,5 @@
 /**
- * WebSocket close status codes as defined by RFC 6455 §7.4.
+ * Selected WebSocket close status codes from RFC 6455 §7.4.
  *
  * `StatusCode` is a plain number — it is not an exhaustive enum. The
  * private-use range `4000`–`4999` is reserved by RFC 6455 for application
