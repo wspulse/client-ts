@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ServerClosedError` — passed to `onTransportDrop` when the server sends a WebSocket close frame. Exposes `code: number` and `reason: string` read directly from the close frame.
+- `StatusCode` — RFC 6455 §7.4 close status code constants (`NormalClosure`, `GoingAway`, etc.). Exported as a plain number object; custom codes in the `4000`–`4999` private-use range are valid. See [wspulse/.github#37](https://github.com/wspulse/.github/issues/37).
+
 ## [0.7.0] - 2026-04-20
 
 ### Changed

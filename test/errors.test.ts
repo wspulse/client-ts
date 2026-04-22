@@ -4,7 +4,9 @@ import {
   RetriesExhaustedError,
   ConnectionLostError,
   SendBufferFullError,
+  ServerClosedError,
 } from "../src/errors.js";
+import { StatusCode } from "../src/status.js";
 
 describe("error classes", () => {
   it("ConnectionClosedError has correct name and message", () => {
@@ -37,5 +39,26 @@ describe("error classes", () => {
     expect(err).toBeInstanceOf(SendBufferFullError);
     expect(err.name).toBe("SendBufferFullError");
     expect(err.message).toContain("buffer");
+  });
+
+  it("ServerClosedError carries code and reason", () => {
+    const err = new ServerClosedError(
+      StatusCode.GoingAway,
+      "server shutting down",
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ServerClosedError);
+    expect(err.name).toBe("ServerClosedError");
+    expect(err.code).toBe(StatusCode.GoingAway);
+    expect(err.reason).toBe("server shutting down");
+    expect(err.message).toContain("1001");
+    expect(err.message).toContain("server shutting down");
+  });
+
+  it("ServerClosedError with empty reason omits it from message", () => {
+    const err = new ServerClosedError(StatusCode.NormalClosure, "");
+    expect(err.code).toBe(StatusCode.NormalClosure);
+    expect(err.reason).toBe("");
+    expect(err.message).toContain("1000");
   });
 });

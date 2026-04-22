@@ -9,6 +9,7 @@ import {
   RetriesExhaustedError,
   ConnectionLostError,
   SendBufferFullError,
+  ServerClosedError,
 } from "./errors.js";
 import { backoff } from "./backoff.js";
 
@@ -192,6 +193,15 @@ class WspulseClient implements Client {
   /** Whether the client is permanently closed. */
   private closed = false;
 
+  /**
+   * Set by the client immediately before internal `ws.close(code, reason)`
+   * calls that still flow through the shared `ws.onclose` handler (currently
+   * the write timeout/write error paths). That handler reads this flag to
+   * decide whether to surface a {@link ServerClosedError} — a self-initiated
+   * close must not be reported as if the server sent the close frame.
+   */
+  private selfClosing = false;
+
   /** Fires exactly once when the client reaches CLOSED state. */
   private readonly doneResolve: () => void;
 
@@ -330,8 +340,28 @@ class WspulseClient implements Client {
       }
     };
 
-    ws.onclose = () => {
-      this.handleTransportDrop();
+    ws.onclose = (ev) => {
+      // Preserve the close frame code and reason so callers can distinguish
+      // server-initiated closes from abrupt network drops.
+      //
+      // Code 1006 ("abnormal closure") is synthesised by the WebSocket spec
+      // when no close frame was received — treat as an abrupt drop.
+      //
+      // When the client self-closed for an internal error (write timeout,
+      // write error), the browser also fires onclose with that same code
+      // and reason. selfClosing distinguishes these from real server-
+      // initiated closes.
+      let dropErr: Error | undefined;
+      if (this.selfClosing) {
+        // Reset immediately — reconnect will create a fresh socket.
+        this.selfClosing = false;
+        dropErr = undefined;
+      } else if (ev.code === 1006) {
+        dropErr = undefined;
+      } else {
+        dropErr = new ServerClosedError(ev.code, ev.reason);
+      }
+      this.handleTransportDrop(dropErr);
     };
 
     ws.onerror = () => {
@@ -345,12 +375,18 @@ class WspulseClient implements Client {
    *
    * If auto-reconnect is enabled, starts the reconnect loop.
    * Otherwise, transitions to CLOSED immediately.
+   *
+   * @param cause  If the drop was triggered by a server close frame, pass
+   *               the {@link ServerClosedError} so onTransportDrop sees
+   *               the code and reason. Leave undefined for abrupt drops
+   *               (default: a generic "transport closed unexpectedly" error).
    */
-  private handleTransportDrop(): void {
+  private handleTransportDrop(cause?: Error): void {
     if (this.closed) return;
 
     this.stopDrain();
-    const dropErr = new Error("wspulse: transport closed unexpectedly");
+    const dropErr =
+      cause ?? new Error("wspulse: transport closed unexpectedly");
     // Set reconnecting before firing the callback so that a synchronous
     // close() call inside onTransportDrop sees the correct state regardless
     // of whether auto-reconnect is enabled.
@@ -548,10 +584,17 @@ class WspulseClient implements Client {
       const timer = this.clock.setTimeout(() => {
         if (settled) return;
         settled = true;
-        try {
-          ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
-        } catch {
-          // Already closed.
+        // Guard against stale transport: if a server close + reconnect landed
+        // while this send was in flight, `ws` is no longer the active socket.
+        // Skipping selfClosing mutation avoids suppressing a subsequent
+        // legitimate ServerClosedError on the new transport.
+        if (this.ws === ws) {
+          try {
+            this.selfClosing = true;
+            ws.close(WS_CLOSE_GOING_AWAY, "write timeout");
+          } catch {
+            this.selfClosing = false; // close threw — flag must not persist to next transport.
+          }
         }
         resolve(false);
       }, this.opts.writeWait);
@@ -563,10 +606,13 @@ class WspulseClient implements Client {
           settled = true;
           this.clock.clearTimeout(timer);
           if (err) {
-            try {
-              ws.close(WS_CLOSE_GOING_AWAY, "write error");
-            } catch {
-              // Already closed.
+            if (this.ws === ws) {
+              try {
+                this.selfClosing = true;
+                ws.close(WS_CLOSE_GOING_AWAY, "write error");
+              } catch {
+                this.selfClosing = false; // close threw — flag must not persist to next transport.
+              }
             }
             resolve(false);
           } else {
@@ -580,10 +626,13 @@ class WspulseClient implements Client {
         if (settled) return;
         settled = true;
         this.clock.clearTimeout(timer);
-        try {
-          ws.close(WS_CLOSE_GOING_AWAY, "write error");
-        } catch {
-          // Already closed.
+        if (this.ws === ws) {
+          try {
+            this.selfClosing = true;
+            ws.close(WS_CLOSE_GOING_AWAY, "write error");
+          } catch {
+            this.selfClosing = false; // close threw — flag must not persist to next transport.
+          }
         }
         resolve(false);
       }
