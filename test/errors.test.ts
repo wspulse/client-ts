@@ -60,5 +60,6 @@ describe("error classes", () => {
     expect(err.code).toBe(StatusCode.NormalClosure);
     expect(err.reason).toBe("");
     expect(err.message).toContain("1000");
+    expect(err.message).not.toContain("reason=");
   });
 });
