@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-02
+
 ### Added
 
 - `ServerClosedError` — passed to `onTransportDrop` when the server sends a WebSocket close frame. Exposes `code: number` and `reason: string` read directly from the close frame.
@@ -148,7 +150,8 @@
 - CI workflow: lint → type-check → test on Node 20 and 22 (3-job matrix)
 - README with quick-start, API reference, and platform notes
 
-[Unreleased]: https://github.com/wspulse/client-ts/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/wspulse/client-ts/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/wspulse/client-ts/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/wspulse/client-ts/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/wspulse/client-ts/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/wspulse/client-ts/compare/v0.5.1...v0.5.2
