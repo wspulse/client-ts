@@ -4,7 +4,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { connect } from "../../src/client.js";
 import type { Client } from "../../src/client.js";
-import { ConnectionLostError } from "../../src/errors.js";
+import { ConnectionLostError, ServerClosedError } from "../../src/errors.js";
+import { StatusCode } from "../../src/status.js";
 import { MockTransport, MockDialer } from "./mock-transport.js";
 import { FakeClock } from "./fake-clock.js";
 
@@ -65,6 +66,25 @@ describe("component: callbacks", () => {
 
     expect(transportDropErr).toBeInstanceOf(Error);
     expect(disconnectErr).toBeInstanceOf(ConnectionLostError);
+  });
+
+  // Scenario 2b: Server close frame with code+reason -> ServerClosedError
+  it("server close frame delivers ServerClosedError with code and reason", async () => {
+    let transportDropErr: Error | null | undefined;
+    const clock = new FakeClock();
+
+    const { transport } = await connectMock(clock, {
+      onTransportDrop(err) {
+        transportDropErr = err;
+      },
+    });
+
+    transport.injectClose(StatusCode.GoingAway, "server shutting down");
+
+    expect(transportDropErr).toBeInstanceOf(ServerClosedError);
+    const sce = transportDropErr as ServerClosedError;
+    expect(sce.code).toBe(StatusCode.GoingAway);
+    expect(sce.reason).toBe("server shutting down");
   });
 
   // onDisconnect fires exactly once on close

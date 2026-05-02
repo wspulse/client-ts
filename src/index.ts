@@ -6,9 +6,11 @@ export { JSONCodec } from "./codec.js";
 export type { ClientOptions, AutoReconnectOptions } from "./options.js";
 export { connect } from "./client.js";
 export { backoff } from "./backoff.js";
+export { StatusCode } from "./status.js";
 export {
   ConnectionClosedError,
   RetriesExhaustedError,
   ConnectionLostError,
   SendBufferFullError,
+  ServerClosedError,
 } from "./errors.js";

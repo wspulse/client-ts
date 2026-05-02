@@ -47,3 +47,33 @@ export class SendBufferFullError extends Error {
     this.name = "SendBufferFullError";
   }
 }
+
+/**
+ * Passed to {@link ClientOptions.onTransportDrop} when the server initiates
+ * a WebSocket close handshake by sending a close frame. The `code` and
+ * `reason` fields are taken directly from the close frame.
+ *
+ * This is a protocol-level intentional close, distinct from an abrupt
+ * network drop (which surfaces as a generic `Error`).
+ *
+ * @example
+ * ```ts
+ * onTransportDrop(err) {
+ *   if (err instanceof ServerClosedError) {
+ *     console.log(`server closed: code=${err.code} reason=${err.reason}`);
+ *   }
+ * }
+ * ```
+ */
+export class ServerClosedError extends Error {
+  readonly code: number;
+  readonly reason: string;
+
+  constructor(code: number, reason: string) {
+    const suffix = reason === "" ? "" : `, reason=${JSON.stringify(reason)}`;
+    super(`wspulse: server closed connection: code=${code}${suffix}`);
+    this.name = "ServerClosedError";
+    this.code = code;
+    this.reason = reason;
+  }
+}
